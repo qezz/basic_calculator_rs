@@ -4,13 +4,13 @@ use evaluator::*;
 
 #[test]
 fn it_parses_numbers() {
-    let (_rem, parsed) = num_parser("1234").unwrap();
+    let (_rem, parsed) = num("1234").unwrap();
     assert_eq!(parsed, ENum(1234));
 }
 
 #[test]
 fn it_parses_add_statements() {
-    let (_rem, parsed) = add_parser("1 + 2").unwrap();
+    let (_rem, parsed) = add("1 + 2").unwrap();
     assert_eq!(parsed, EAdd(Box::new(ENum(1)), Box::new(ENum(2))));
 }
 

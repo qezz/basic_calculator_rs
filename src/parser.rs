@@ -1,12 +1,12 @@
 use nom::digit;
 use types::Expr;
 
-named!(pub num_parser(&str) -> Expr, map!(ws!(digit), parse_num));
-named!(pub add_parser(&str) -> Expr,
+named!(pub num(&str) -> Expr, map!(ws!(digit), parse_num));
+named!(pub add(&str) -> Expr,
        do_parse!(
-           expr1: num_parser >>
+           expr1: num >>
            char!('+') >>
-           expr2: num_parser >>
+           expr2: num >>
            (parse_add(expr1, expr2))
        ));
 
