@@ -6,6 +6,7 @@ use nom::digit;
 #[derive(Debug, PartialEq)]
 enum Expr {
     ENum(i32),
+    EAdd(Box<Expr>, Box<Expr>),
 }
 
 fn parse_num(str: &str) -> Expr {
@@ -14,7 +15,18 @@ fn parse_num(str: &str) -> Expr {
     Expr::ENum(num)
 }
 
-named!(num_parser(&str) -> Expr, map!(digit, parse_num));
+fn parse_add(expr1: Expr, expr2: Expr) -> Expr {
+    Expr::EAdd(Box::new(expr1), Box::new(expr2))
+}
+
+named!(num_parser(&str) -> Expr, map!(ws!(digit), parse_num));
+named!(add_parser(&str) -> Expr,
+       do_parse!(
+           expr1: num_parser >>
+           char!('+') >>
+           expr2: num_parser >>
+           (parse_add(expr1, expr2))
+       ));
 
 #[cfg(test)]
 mod tests {
@@ -25,6 +37,12 @@ mod tests {
     fn it_parses_numbers() {
         let (_rem, parsed) = num_parser("1234").unwrap();
         assert_eq!(parsed, ENum(1234));
+    }
+
+    #[test]
+    fn it_parses_add_statements() {
+        let (_rem, parsed) = add_parser("1 + 2").unwrap();
+        assert_eq!(parsed, EAdd(Box::new(ENum(1)), Box::new(ENum(2))));
     }
 }
 
