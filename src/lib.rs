@@ -9,6 +9,8 @@ enum Expr {
     EAdd(Box<Expr>, Box<Expr>),
 }
 
+use Expr::*;
+
 fn parse_num(str: &str) -> Expr {
     // forgoing all error handling for now
     let num: i32 = str.trim().parse().unwrap();
@@ -17,6 +19,13 @@ fn parse_num(str: &str) -> Expr {
 
 fn parse_add(expr1: Expr, expr2: Expr) -> Expr {
     Expr::EAdd(Box::new(expr1), Box::new(expr2))
+}
+
+fn evaluate(expr: Expr) -> i32 {
+    match expr {
+        ENum(num) => num,
+        EAdd(expr1, expr2) => evaluate(*expr1) + evaluate(*expr2),
+    }
 }
 
 named!(num_parser(&str) -> Expr, map!(ws!(digit), parse_num));
@@ -43,6 +52,12 @@ mod tests {
     fn it_parses_add_statements() {
         let (_rem, parsed) = add_parser("1 + 2").unwrap();
         assert_eq!(parsed, EAdd(Box::new(ENum(1)), Box::new(ENum(2))));
+    }
+
+    #[test]
+    fn it_evaluates_add_expression() {
+        let expr = EAdd(Box::new(ENum(1)), Box::new(ENum(2)));
+        assert_eq!(evaluate(expr), 3);
     }
 }
 
