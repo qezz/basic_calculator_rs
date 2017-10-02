@@ -5,4 +5,5 @@ pub enum Expr {
     ESub(Box<Expr>, Box<Expr>),
     EMul(Box<Expr>, Box<Expr>),
     EDiv(Box<Expr>, Box<Expr>),
+    EExp(Box<Expr>, Box<Expr>),
 }

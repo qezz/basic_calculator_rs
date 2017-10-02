@@ -7,6 +7,8 @@ mod evaluator;
 #[cfg(test)]
 mod tests;
 
+use parser::expr;
+
 pub fn main() {
-    println!("Hello, world!");
+    println!("{:?}", expr("1 + 2 * 4"));
 }

@@ -8,5 +8,6 @@ pub fn evaluate(expr: Expr) -> f32 {
         ESub(expr1, expr2) => evaluate(*expr1) - evaluate(*expr2),
         EMul(expr1, expr2) => evaluate(*expr1) * evaluate(*expr2),
         EDiv(expr1, expr2) => evaluate(*expr1) / evaluate(*expr2),
+        EExp(expr1, expr2) => evaluate(*expr1).powf(evaluate(*expr2)),
     }
 }
