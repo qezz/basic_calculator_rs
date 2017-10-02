@@ -68,3 +68,55 @@ fn parse_num(num: &str) -> Expr {
     // forgoing all error handling for now
     ENum(f32::from_str(num).unwrap())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_add_statement() {
+        let (_rem, parsed) = expr("1 + 2").unwrap();
+        assert_eq!(parsed, EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
+    }
+
+    #[test]
+    fn test_parse_subtraction_statement() {
+        let (_rem, parsed) = expr("1 - 2").unwrap();
+        assert_eq!(parsed, ESub(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
+    }
+
+    #[test]
+    fn test_parse_multiplication_statement() {
+        let (_rem, parsed) = expr("1 * 2").unwrap();
+        assert_eq!(parsed, EMul(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
+    }
+
+    #[test]
+    fn test_parse_multi_level_expression() {
+        let (_rem, parsed) = expr("1 * 2 + 3 / 4 ^ 6").unwrap();
+        let expected = EAdd(
+            Box::new(EMul(Box::new(ENum(1.0)), Box::new(ENum(2.0)))),
+            Box::new(EDiv(
+                Box::new(ENum(3.0)),
+                Box::new(EExp(Box::new(ENum(4.0)), Box::new(ENum(6.0)))),
+            )),
+        );
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn test_parse_expression_with_parantheses() {
+        let (_rem, parsed) = expr("(1 + 2) * 3").unwrap();
+        let expected = EMul(
+            Box::new(EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)))),
+            Box::new(ENum(3.0)),
+        );
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn test_parse_division_statement() {
+        let (_rem, parsed) = expr("1 / 2").unwrap();
+        assert_eq!(parsed, EDiv(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
+    }
+}

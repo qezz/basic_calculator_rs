@@ -4,8 +4,6 @@ extern crate nom;
 mod types;
 mod parser;
 mod evaluator;
-#[cfg(test)]
-mod tests;
 
 use parser::expr;
 
