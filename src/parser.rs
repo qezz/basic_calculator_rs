@@ -34,30 +34,32 @@ named!(pub expr(&str) -> Expr,
            (parse_expr(t, rem))
        ));
 
+// Let the duplication in below 3 functions remain for now, it will help with debugging
+// Can be removed as the last step, once we know everything is working fine
 fn parse_expr(expr: Expr, mut rem: Vec<(char, Expr)>) -> Expr {
     println!("inside parse expression, remaining is {:?}", rem);
-    if rem.len() == 0 {
-        expr
-    } else {
-        EAdd(Box::new(expr), Box::new(rem.pop().unwrap().1))
-    }
+    rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
 }
 
 fn parse_factor(expr: Expr, mut rem: Vec<(char, Expr)>) -> Expr {
     println!("inside parse factor, remaining is {:?}", rem);
-    if rem.len() == 0 {
-        expr
-    } else {
-        EExp(Box::new(expr), Box::new(rem.pop().unwrap().1))
-    }
+    rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
 }
 
 fn parse_term(expr: Expr, mut rem: Vec<(char, Expr)>) -> Expr {
     println!("inside parse term, remaining is {:?}", rem);
-    if rem.len() == 0 {
-        expr
-    } else {
-        EMul(Box::new(expr), Box::new(rem.pop().unwrap().1))
+    rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
+}
+
+fn parse_op(tup: (char, Expr), expr1: Expr) -> Expr {
+    let (op, expr2) = tup;
+    match op {
+        '+' => EAdd(Box::new(expr1), Box::new(expr2)),
+        '-' => ESub(Box::new(expr1), Box::new(expr2)),
+        '*' => EMul(Box::new(expr1), Box::new(expr2)),
+        '/' => EDiv(Box::new(expr1), Box::new(expr2)),
+        '^' => EExp(Box::new(expr1), Box::new(expr2)),
+        _ => panic!("Unknown Operation"),
     }
 }
 
