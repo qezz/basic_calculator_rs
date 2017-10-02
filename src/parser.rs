@@ -36,17 +36,17 @@ named!(pub expr(&str) -> Expr,
 
 // Let the duplication in below 3 functions remain for now, it will help with debugging
 // Can be removed as the last step, once we know everything is working fine
-fn parse_expr(expr: Expr, mut rem: Vec<(char, Expr)>) -> Expr {
+fn parse_expr(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
     println!("inside parse expression, remaining is {:?}", rem);
     rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
 }
 
-fn parse_factor(expr: Expr, mut rem: Vec<(char, Expr)>) -> Expr {
+fn parse_factor(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
     println!("inside parse factor, remaining is {:?}", rem);
     rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
 }
 
-fn parse_term(expr: Expr, mut rem: Vec<(char, Expr)>) -> Expr {
+fn parse_term(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
     println!("inside parse term, remaining is {:?}", rem);
     rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
 }
