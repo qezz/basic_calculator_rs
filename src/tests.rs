@@ -3,12 +3,6 @@ use parser::*;
 use evaluator::*;
 
 #[test]
-fn it_parses_numbers() {
-    let (_rem, parsed) = num("1234").unwrap();
-    assert_eq!(parsed, ENum(1234.0));
-}
-
-#[test]
 fn it_parses_add_statements() {
     let (_rem, parsed) = expr("1 + 2").unwrap();
     assert_eq!(parsed, EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0))));

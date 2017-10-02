@@ -2,7 +2,7 @@ use nom::digit;
 use types::Expr;
 use types::Expr::*;
 
-named!(pub num(&str) -> Expr, map!(ws!(digit), parse_num));
+named!(num(&str) -> Expr, map!(ws!(digit), parse_num));
 named!(pub expr(&str) -> Expr,
        do_parse!(
            expr1: num >>
