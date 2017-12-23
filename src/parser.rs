@@ -1,5 +1,6 @@
-use nom::digit;
+use nom::{digit, alpha};
 use types::Expr;
+use types::EVar;
 use types::Expr::*;
 use std::str::FromStr;
 
@@ -17,37 +18,42 @@ named!(factor<&str, Expr>,
        do_parse!(
            op: operation >>
            rem: many0!(tuple!(char!('^'), factor)) >>
-           (parse_factor(op, rem))
+           (parse_expr(op, rem))
        ));
 // A term is either a single factor or one followed by a (* or /) and another factor
 named!(term<&str, Expr>,
        do_parse!(
            f: factor >>
            rem: many0!(tuple!(alt!(char!('*') | char!('/')), factor)) >>
-           (parse_term(f, rem))
+           (parse_expr(f, rem))
        ));
-// A expression is either a single term or one followed by a (+ or -) and another term
-named!(pub expr(&str) -> Expr,
+// A sub-expression is either a single term or one followed by a (+ or -) and another term
+named!(subexpr<&str, Expr>,
        do_parse!(
            t: term >>
            rem: many0!(tuple!(alt!(char!('+') | char!('-')), term)) >>
            (parse_expr(t, rem))
        ));
+// a variable name is just a series of alphabets. We don't want alphanumeric variable names for now.
+named!(varname<&str, &str>, ws!(alpha));
+// a let expression is the let keyword, followed by a variable name, then an equals sign and finally any expression
+named!(let_expr<&str, Expr>,
+       do_parse!(
+           tag!("let") >>
+           var_name: varname >>
+           char!('=') >>
+           expr: expr >>
+           (parse_let(var_name, expr))
+       ));
+// an expression is either a let expression or a sub expression, with the former getting higher priority
+named!(pub expr<&str, Expr>, alt!(let_expr | subexpr));
 
-// Let the duplication in below 3 functions remain for now, it will help with debugging
-// Can be removed as the last step, once we know everything is working fine
+
+fn parse_let(var_name: &str, expr: Expr) -> Expr {
+    ELet(EVar(var_name.to_string()), Box::new(expr))
+}
+
 fn parse_expr(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
-    println!("inside parse expression, remaining is {:?}", rem);
-    rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
-}
-
-fn parse_factor(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
-    println!("inside parse factor, remaining is {:?}", rem);
-    rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
-}
-
-fn parse_term(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
-    println!("inside parse term, remaining is {:?}", rem);
     rem.into_iter().fold(expr, |acc, val| parse_op(val, acc))
 }
 
@@ -64,7 +70,6 @@ fn parse_op(tup: (char, Expr), expr1: Expr) -> Expr {
 }
 
 fn parse_num(num: &str) -> Expr {
-    println!("inside parse num");
     // forgoing all error handling for now
     ENum(f32::from_str(num).unwrap())
 }
@@ -118,5 +123,14 @@ mod tests {
     fn test_parse_division_statement() {
         let (_rem, parsed) = expr("1 / 2").unwrap();
         assert_eq!(parsed, EDiv(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
+    }
+
+    #[test]
+    fn test_parse_let_statement() {
+        let (_rem, parsed) = expr("let phi = 20").unwrap();
+        assert_eq!(
+            parsed,
+            ELet(EVar(String::from("phi")), Box::new(ENum(20.0)))
+        );
     }
 }
