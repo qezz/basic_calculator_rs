@@ -1,6 +1,5 @@
 use nom::{digit, alpha};
 use types::Expr;
-use types::EVar;
 use types::Expr::*;
 use std::str::FromStr;
 
@@ -50,7 +49,7 @@ named!(pub expr<&str, Expr>, alt!(let_expr | subexpr));
 
 
 fn parse_let(var_name: &str, expr: Expr) -> Expr {
-    ELet(EVar(var_name.to_string()), Box::new(expr))
+    ELet(var_name.to_string(), Box::new(expr))
 }
 
 fn parse_expr(expr: Expr, rem: Vec<(char, Expr)>) -> Expr {
@@ -127,10 +126,17 @@ mod tests {
 
     #[test]
     fn test_parse_let_statement() {
-        let (_rem, parsed) = expr("let phi = 20").unwrap();
+        let (_rem, parsed) = expr("let phi = (20 + 30) - 10").unwrap();
         assert_eq!(
             parsed,
-            ELet(EVar(String::from("phi")), Box::new(ENum(20.0)))
+            ELet(
+                String::from("phi"),
+                Box::new(ESub(
+                    Box::new(EAdd(Box::new(ENum(20.0)), Box::new(ENum(30.0)))),
+                    Box::new(ENum(10.0)),
+                )),
+            )
         );
+    }
     }
 }
