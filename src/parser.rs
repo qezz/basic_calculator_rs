@@ -11,7 +11,7 @@ named!(num<&str, Expr>, map!(ws!(digit),  parse_num));
 // Parse an expression with parantheses
 named!(parens<&str, Expr>, delimited!(ws!(char!('(')), expr, ws!(char!(')'))));
 // An operation is either a number or a parantesised expression
-named!(operation<&str, Expr>, alt!(num | parens));
+named!(operation<&str, Expr>, alt!(num | parens | map!(varname, parse_evar)));
 // A factor is either a single operation or one followed by ^ and another factor
 named!(factor<&str, Expr>,
        do_parse!(
@@ -47,6 +47,9 @@ named!(let_expr<&str, Expr>,
 // an expression is either a let expression or a sub expression, with the former getting higher priority
 named!(pub expr<&str, Expr>, alt!(let_expr | subexpr));
 
+fn parse_evar(var_name: &str) -> Expr {
+    EVar(var_name.to_string())
+}
 
 fn parse_let(var_name: &str, expr: Expr) -> Expr {
     ELet(var_name.to_string(), Box::new(expr))
@@ -138,5 +141,22 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn test_parse_variables_in_expressions() {
+        let (_rem, parsed) = expr("20 + (30 + phi) - 10").unwrap();
+        assert_eq!(
+            parsed,
+            ESub(
+                Box::new(EAdd(
+                    Box::new(ENum(20.0)),
+                    Box::new(EAdd(
+                        Box::new(ENum(30.0)),
+                        Box::new(EVar(String::from("phi"))),
+                    )),
+                )),
+                Box::new(ENum(10.0)),
+            )
+        );
     }
 }
