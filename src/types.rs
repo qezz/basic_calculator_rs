@@ -18,8 +18,8 @@ impl Environment {
     pub fn new() -> Environment {
         Environment(HashMap::new())
     }
-    pub fn get(&self, var_name: String) -> &f32 {
-        self.0.get(&var_name).unwrap()
+    pub fn get(&self, var_name: String) -> f32 {
+        *self.0.get(&var_name).unwrap()
     }
     pub fn add(&mut self, var_name: String, result: f32) -> &mut Environment {
         &self.0.insert(var_name, result);

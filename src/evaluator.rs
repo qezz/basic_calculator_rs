@@ -31,7 +31,10 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
             let (old_env, result) = evaluate(environment, *expr);
             (old_env.add(varname, result), result)
         }
-        EVar(_varname) => panic!("Undefined"),
+        EVar(varname) => {
+            let result = environment.get(varname);
+            (environment, result)
+        }
     }
 }
 
@@ -85,6 +88,25 @@ mod tests {
         let mut env = Environment::new();
         let (new_env, result) = evaluate(&mut env, expr);
         assert_eq!(result, 3.0);
-        assert_eq!(*new_env.get(String::from("phi")), 3.0);
+        assert_eq!(new_env.get(String::from("phi")), 3.0);
+    }
+
+    #[test]
+    fn test_parse_expressions_with_variables() {
+        let var_name = String::from("phi");
+        let expr = ESub(
+            Box::new(EAdd(
+                Box::new(ENum(20.0)),
+                Box::new(EAdd(
+                    Box::new(ENum(30.0)),
+                    Box::new(EVar(String::from("phi"))),
+                )),
+            )),
+            Box::new(ENum(10.0)),
+        );
+        let mut env = Environment::new();
+        env.add(var_name.clone(), 20.0);
+        let (_new_env, result) = evaluate(&mut env, expr);
+        assert_eq!(result, 60.0);
     }
 }
