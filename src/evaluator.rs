@@ -35,7 +35,12 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
             let result = environment.get(varname);
             evaluate(environment, result)
         }
-        EDefun(_, _, _) => (environment, 0.0),
+        EDefun(fun_name, params, body) => {
+            (
+                environment.add(fun_name.clone(), EDefun(fun_name.clone(), params, body)),
+                0.0,
+            )
+        }
         EReturn(expr) => evaluate(environment, *expr),
     }
 }
@@ -128,5 +133,23 @@ mod tests {
         env.add(var_name.clone(), ENum(2.0));
         let (_new_env, result) = evaluate(&mut env, expr);
         assert_eq!(result, 6.0);
+    }
+
+    #[test]
+    fn test_evaluate_function_definitions() {
+        let expr = EDefun(
+            String::from("square"),
+            vec![String::from("n")],
+            vec![
+                EReturn(Box::new(EMul(
+                    Box::new(EVar(String::from("n"))),
+                    Box::new(EVar(String::from("n"))),
+                ))),
+            ],
+        );
+        let mut env = Environment::new();
+        let (new_env, result) = evaluate(&mut env, expr.clone());
+        assert_eq!(new_env.get(String::from("square")), expr.clone());
+        assert_eq!(result, 0.0);
     }
 }
