@@ -68,8 +68,18 @@ named!(defun<&str, Expr>,
            body: fun_body >>
            (parse_defun(func_name, arg, body))
        ));
+named!(funcall<&str, Expr>,
+       do_parse!(
+           func_name: varname >>
+           args: delimited!(char!('('), separated_list!(char!(','), expr), char!(')')) >>
+           (parse_funcall(func_name, args))
+       ));
 // an expression is either a let expression or a sub expression, with the former getting higher priority
-named!(pub expr<&str, Expr>, alt!(defun | let_expr | subexpr));
+named!(pub expr<&str, Expr>, alt!(defun | funcall | let_expr | subexpr));
+
+fn parse_funcall(name: &str, args: Vec<Expr>) -> Expr {
+    EFunCall(name.to_string(), args)
+}
 
 fn parse_return(expr: Expr) -> Expr {
     EReturn(Box::new(expr))
@@ -251,5 +261,15 @@ mod tests {
                 ],
             )
         )
+    }
+
+    #[test]
+    fn test_parse_function_application() {
+        let function_call = "multiply(5, 6)";
+        let (_rem, parsed) = expr(function_call).unwrap();
+        assert_eq!(
+            parsed,
+            EFunCall(String::from("multiply"), vec![ENum(5.0), ENum(6.0)])
+        );
     }
 }

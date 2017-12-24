@@ -41,6 +41,7 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
                 0.0,
             )
         }
+        EFunCall(_, _) => (environment, 0.0),
         EReturn(expr) => evaluate(environment, *expr),
     }
 }
