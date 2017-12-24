@@ -28,12 +28,12 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
             (environment, result)
         }
         ELet(varname, expr) => {
-            let (old_env, result) = evaluate(environment, *expr);
-            (old_env.add(varname, result), result)
+            let (old_env, result) = evaluate(environment, *expr.clone());
+            (old_env.add(varname, *expr.clone()), result)
         }
         EVar(varname) => {
             let result = environment.get(varname);
-            (environment, result)
+            evaluate(environment, result)
         }
         EDefun(_, _, _) => (environment, 0.0),
         EReturn(expr) => evaluate(environment, *expr),
@@ -84,14 +84,12 @@ mod tests {
     #[test]
     fn test_evaluate_let_expressions() {
         let var_name = String::from("phi");
-        let expr = ELet(
-            var_name.clone(),
-            Box::new(EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)))),
-        );
+        let let_expr = EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)));
+        let expr = ELet(var_name.clone(), Box::new(let_expr.clone()));
         let mut env = Environment::new();
-        let (new_env, result) = evaluate(&mut env, expr);
+        let (new_env, result) = evaluate(&mut env, expr.clone());
         assert_eq!(result, 3.0);
-        assert_eq!(new_env.get(var_name.clone()), 3.0);
+        assert_eq!(new_env.get(var_name.clone()), let_expr.clone());
     }
 
     #[test]
@@ -107,7 +105,7 @@ mod tests {
             Box::new(ENum(10.0)),
         );
         let mut env = Environment::new();
-        env.add(var_name.clone(), 20.0);
+        env.add(var_name.clone(), ENum(20.0));
         let (_new_env, result) = evaluate(&mut env, expr);
         assert_eq!(result, 60.0);
     }
@@ -127,7 +125,7 @@ mod tests {
             EMul(Box::new(ENum(3.0)), Box::new(EVar(var_name.clone()))),
         ));
         let mut env = Environment::new();
-        env.add(var_name.clone(), 2.0);
+        env.add(var_name.clone(), ENum(2.0));
         let (_new_env, result) = evaluate(&mut env, expr);
         assert_eq!(result, 6.0);
     }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     ENum(f32),
     EVar(String),
@@ -14,16 +14,16 @@ pub enum Expr {
     EReturn(Box<Expr>),
 }
 
-pub struct Environment(pub HashMap<String, f32>);
+pub struct Environment(pub HashMap<String, Expr>);
 
 impl Environment {
     pub fn new() -> Environment {
         Environment(HashMap::new())
     }
-    pub fn get(&self, var_name: String) -> f32 {
-        *self.0.get(&var_name).unwrap()
+    pub fn get(&self, var_name: String) -> Expr {
+        self.0.get(&var_name).unwrap().clone()
     }
-    pub fn add(&mut self, var_name: String, result: f32) -> &mut Environment {
+    pub fn add(&mut self, var_name: String, result: Expr) -> &mut Environment {
         &self.0.insert(var_name, result);
         self
     }
