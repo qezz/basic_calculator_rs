@@ -15,6 +15,7 @@ pub enum Expr {
     EReturn(Box<Expr>),
 }
 
+#[derive(Clone)]
 pub struct Environment(pub HashMap<String, Expr>);
 
 impl Environment {

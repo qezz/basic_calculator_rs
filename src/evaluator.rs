@@ -41,7 +41,24 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
                 0.0,
             )
         }
-        EFunCall(_, _) => (environment, 0.0),
+        EFunCall(func_name, args) => {
+            let defun = environment.get(func_name.clone());
+            match defun {
+                EDefun(_, params, body) => {
+                    let mut cloned_environment = environment.clone();
+                    params.into_iter().zip(args.into_iter()).fold(
+                        &mut cloned_environment,
+                        |env, value| env.add(value.0, value.1),
+                    );
+                    let result = body.into_iter().fold(
+                        (&mut cloned_environment, 0.0),
+                        |env, expr| evaluate(env.0, expr),
+                    );
+                    (environment, result.1)
+                }
+                _ => panic!("Undefined function {}", func_name),
+            }
+        }
         EReturn(expr) => evaluate(environment, *expr),
     }
 }
@@ -152,5 +169,32 @@ mod tests {
         let (new_env, result) = evaluate(&mut env, expr.clone());
         assert_eq!(new_env.get(String::from("square")), expr.clone());
         assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_evaluate_function_application() {
+        let fun_name = String::from("multiply");
+        let fun_expr = EDefun(
+            fun_name.clone(),
+            vec![String::from("m"), String::from("n")],
+            vec![
+                ELet(
+                    String::from("result"),
+                    Box::new(EMul(
+                        Box::new(EVar(String::from("m"))),
+                        Box::new(EVar(String::from("n"))),
+                    ))
+                ),
+                EReturn(Box::new(EVar(String::from("result")))),
+            ],
+        );
+        let mut env = Environment::new();
+        env.add(fun_name.clone(), fun_expr.clone());
+
+        let first_arg_expr = EMul(Box::new(ENum(2.0)), Box::new(ENum(3.0)));
+        let fun_call_expr = EFunCall(fun_name.clone(), vec![first_arg_expr, ENum(4.0)]);
+
+        let (_new_env, result) = evaluate(&mut env, fun_call_expr);
+        assert_eq!(result, 24.0);
     }
 }
