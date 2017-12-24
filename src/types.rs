@@ -10,7 +10,7 @@ pub enum Expr {
     EDiv(Box<Expr>, Box<Expr>),
     EExp(Box<Expr>, Box<Expr>),
     ELet(String, Box<Expr>),
-    EDefun(String, String, Box<Expr>),
+    EDefun(String, Vec<String>, Vec<Expr>),
     EReturn(Box<Expr>),
 }
 

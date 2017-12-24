@@ -1,4 +1,4 @@
-use nom::{digit, alpha};
+use nom::{digit, alpha, eol};
 use types::Expr;
 use types::Expr::*;
 use std::str::FromStr;
@@ -34,7 +34,7 @@ named!(subexpr<&str, Expr>,
            (parse_expr(t, rem))
        ));
 // a variable name is just a series of alphabets. We don't want alphanumeric variable names for now.
-named!(varname<&str, &str>, ws!(alpha));
+named!(pub varname<&str, &str>, ws!(alpha));
 // a let expression is the let keyword, followed by a variable name, then an equals sign and finally any expression
 named!(let_expr<&str, Expr>,
        do_parse!(
@@ -50,14 +50,21 @@ named!(return_statement<&str, Expr>,
            expr: expr >>
            (parse_return(expr))
        ));
-named!(fun_body<&str, Expr>, delimited!(ws!(char!('{')), expr, ws!(char!('}'))));
+named!(fun_body<&str, Vec<Expr>>,
+       do_parse!(
+           ws!(char!('{')) >>
+           opt!(char!('\n')) >>
+           exprs: many0!(terminated!(ws!(expr), char!(';'))) >>
+           opt!(char!('\n')) >>
+           ws!(char!('}')) >>
+           (exprs)
+       ));
+named!(arg_list<&str, Vec<&str>>, delimited!(char!('('), separated_list!(char!(','), varname), char!(')')));
 named!(defun<&str, Expr>,
        do_parse!(
            tag!("define") >>
            func_name: varname >>
-           char!('(') >>
-           arg: varname >>
-           char!(')') >>
+           arg: arg_list >>
            body: fun_body >>
            (parse_defun(func_name, arg, body))
        ));
@@ -68,8 +75,12 @@ fn parse_return(expr: Expr) -> Expr {
     EReturn(Box::new(expr))
 }
 
-fn parse_defun(func_name: &str, arg: &str, body: Expr) -> Expr {
-    EDefun(func_name.to_string(), arg.to_string(), Box::new(body))
+fn parse_defun(func_name: &str, arg: Vec<&str>, body: Vec<Expr>) -> Expr {
+    EDefun(
+        func_name.to_string(),
+        arg.into_iter().map(|s| s.to_string()).collect(),
+        body,
+    )
 }
 
 fn parse_evar(var_name: &str) -> Expr {
@@ -199,28 +210,46 @@ mod tests {
 
     #[test]
     fn test_parse_simple_function_definitions_with_single_argument() {
-        let function_definiton = "define square(n) { return n * n }";
+        let function_definiton = "define square(n) { return n * n; }";
         let (_rem, parsed) = expr(function_definiton).unwrap();
         assert_eq!(
             parsed,
             EDefun(
                 String::from("square"),
-                String::from("n"),
-                Box::new(EReturn(Box::new(EMul(
-                    Box::new(EVar(String::from("n"))),
-                    Box::new(EVar(String::from("n"))),
-                )))),
+                vec![String::from("n")],
+                vec![
+                    EReturn(Box::new(EMul(
+                        Box::new(EVar(String::from("n"))),
+                        Box::new(EVar(String::from("n"))),
+                    ))),
+                ],
             )
         );
     }
 
-    // #[test]
-    // fn test_parse_function_definitions() {
-    //     let function_definiton = "define multiply(m, n) {
-    //         let result = m * n;
-    //         return result;
-    //         }";
-    //     let (_rem, parsed) = expr(function_definiton).unwrap();
-    //     assert_eq!(parsed, EDefun(String::from("square")))
-    // }
+    #[test]
+    fn test_parse_function_definitions() {
+        let function_definiton = "define multiply(m, n) {
+            let result = m * n;
+            return result;
+            }";
+        let (_rem, parsed) = expr(function_definiton).unwrap();
+        assert_eq!(
+            parsed,
+            EDefun(
+                String::from("multiply"),
+                vec![String::from("m"), String::from("n")],
+                vec![
+                    ELet(
+                        String::from("result"),
+                        Box::new(EMul(
+                            Box::new(EVar(String::from("m"))),
+                            Box::new(EVar(String::from("n"))),
+                        ))
+                    ),
+                    EReturn(Box::new(EVar(String::from("result")))),
+                ],
+            )
+        )
+    }
 }
