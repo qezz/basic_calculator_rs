@@ -36,7 +36,7 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
             (environment, result)
         }
         EDefun(_, _, _) => (environment, 0.0),
-        EReturn(_) => (environment, 0.0),
+        EReturn(expr) => evaluate(environment, *expr),
     }
 }
 
@@ -83,26 +83,26 @@ mod tests {
 
     #[test]
     fn test_evaluate_let_expressions() {
+        let var_name = String::from("phi");
         let expr = ELet(
-            String::from("phi"),
+            var_name.clone(),
             Box::new(EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)))),
         );
         let mut env = Environment::new();
         let (new_env, result) = evaluate(&mut env, expr);
         assert_eq!(result, 3.0);
-        assert_eq!(new_env.get(String::from("phi")), 3.0);
+        assert_eq!(new_env.get(var_name.clone()), 3.0);
     }
 
     #[test]
-    fn test_parse_expressions_with_variables() {
+    fn test_evaluate_expressions_with_variables() {
         let var_name = String::from("phi");
         let expr = ESub(
             Box::new(EAdd(
                 Box::new(ENum(20.0)),
-                Box::new(EAdd(
-                    Box::new(ENum(30.0)),
-                    Box::new(EVar(String::from("phi"))),
-                )),
+                Box::new(
+                    EAdd(Box::new(ENum(30.0)), Box::new(EVar(var_name.clone()))),
+                ),
             )),
             Box::new(ENum(10.0)),
         );
@@ -110,5 +110,25 @@ mod tests {
         env.add(var_name.clone(), 20.0);
         let (_new_env, result) = evaluate(&mut env, expr);
         assert_eq!(result, 60.0);
+    }
+
+    #[test]
+    fn test_evaluate_simple_return_statements() {
+        let expr = EReturn(Box::new(EMul(Box::new(ENum(3.0)), Box::new(ENum(2.0)))));
+        let mut env = Environment::new();
+        let (_new_env, result) = evaluate(&mut env, expr);
+        assert_eq!(result, 6.0);
+    }
+
+    #[test]
+    fn test_evaluate_return_statements_that_use_environment() {
+        let var_name = String::from("phi");
+        let expr = EReturn(Box::new(
+            EMul(Box::new(ENum(3.0)), Box::new(EVar(var_name.clone()))),
+        ));
+        let mut env = Environment::new();
+        env.add(var_name.clone(), 2.0);
+        let (_new_env, result) = evaluate(&mut env, expr);
+        assert_eq!(result, 6.0);
     }
 }
