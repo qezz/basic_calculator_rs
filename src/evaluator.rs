@@ -35,6 +35,8 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
             let result = environment.get(varname);
             (environment, result)
         }
+        EDefun(_, _, _) => (environment, 0.0),
+        EReturn(_) => (environment, 0.0),
     }
 }
 

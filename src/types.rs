@@ -10,6 +10,8 @@ pub enum Expr {
     EDiv(Box<Expr>, Box<Expr>),
     EExp(Box<Expr>, Box<Expr>),
     ELet(String, Box<Expr>),
+    EDefun(String, String, Box<Expr>),
+    EReturn(Box<Expr>),
 }
 
 pub struct Environment(pub HashMap<String, f32>);

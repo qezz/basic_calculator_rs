@@ -11,7 +11,7 @@ named!(num<&str, Expr>, map!(ws!(digit),  parse_num));
 // Parse an expression with parantheses
 named!(parens<&str, Expr>, delimited!(ws!(char!('(')), expr, ws!(char!(')'))));
 // An operation is either a number or a parantesised expression
-named!(operation<&str, Expr>, alt!(num | parens | map!(varname, parse_evar)));
+named!(operation<&str, Expr>, alt!(num | parens | return_statement | map!(varname, parse_evar)));
 // A factor is either a single operation or one followed by ^ and another factor
 named!(factor<&str, Expr>,
        do_parse!(
@@ -44,8 +44,33 @@ named!(let_expr<&str, Expr>,
            expr: expr >>
            (parse_let(var_name, expr))
        ));
+named!(return_statement<&str, Expr>,
+       do_parse!(
+           tag!("return") >>
+           expr: expr >>
+           (parse_return(expr))
+       ));
+named!(fun_body<&str, Expr>, delimited!(ws!(char!('{')), expr, ws!(char!('}'))));
+named!(defun<&str, Expr>,
+       do_parse!(
+           tag!("define") >>
+           func_name: varname >>
+           char!('(') >>
+           arg: varname >>
+           char!(')') >>
+           body: fun_body >>
+           (parse_defun(func_name, arg, body))
+       ));
 // an expression is either a let expression or a sub expression, with the former getting higher priority
-named!(pub expr<&str, Expr>, alt!(let_expr | subexpr));
+named!(pub expr<&str, Expr>, alt!(defun | let_expr | subexpr));
+
+fn parse_return(expr: Expr) -> Expr {
+    EReturn(Box::new(expr))
+}
+
+fn parse_defun(func_name: &str, arg: &str, body: Expr) -> Expr {
+    EDefun(func_name.to_string(), arg.to_string(), Box::new(body))
+}
 
 fn parse_evar(var_name: &str) -> Expr {
     EVar(var_name.to_string())
@@ -159,4 +184,43 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn test_parse_return_statements() {
+        let (_rem, parsed) = expr("return n * n").unwrap();
+        assert_eq!(
+            parsed,
+            EReturn(Box::new(EMul(
+                Box::new(EVar(String::from("n"))),
+                Box::new(EVar(String::from("n"))),
+            )))
+        );
+    }
+
+    #[test]
+    fn test_parse_simple_function_definitions_with_single_argument() {
+        let function_definiton = "define square(n) { return n * n }";
+        let (_rem, parsed) = expr(function_definiton).unwrap();
+        assert_eq!(
+            parsed,
+            EDefun(
+                String::from("square"),
+                String::from("n"),
+                Box::new(EReturn(Box::new(EMul(
+                    Box::new(EVar(String::from("n"))),
+                    Box::new(EVar(String::from("n"))),
+                )))),
+            )
+        );
+    }
+
+    // #[test]
+    // fn test_parse_function_definitions() {
+    //     let function_definiton = "define multiply(m, n) {
+    //         let result = m * n;
+    //         return result;
+    //         }";
+    //     let (_rem, parsed) = expr(function_definiton).unwrap();
+    //     assert_eq!(parsed, EDefun(String::from("square")))
+    // }
 }
