@@ -1,4 +1,4 @@
-use nom::{digit, alpha, eol};
+use nom::{digit, alpha};
 use types::Expr;
 use types::Expr::*;
 use std::str::FromStr;
