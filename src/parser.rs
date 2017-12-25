@@ -360,4 +360,56 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn test_parses_recursive_function_definitions() {
+        let recursive_function = "define fibrecursive(n) {
+            if (n == 1) {
+              return 1;
+            } else if (n == 2) {
+              return 1;
+            } else {
+              return fibrecursive(n - 1) + fibrecursive(n);
+            };
+          }";
+        let (_rem, parsed) = defun(recursive_function).unwrap();
+        let fun_name = String::from("fibrecursive");
+        assert_eq!(
+            parsed,
+            EDefun(
+                fun_name.clone(),
+                vec![String::from("n")],
+                vec![
+                    EIf(
+                        Box::new(IfExpr {
+                            condition: (EVar(String::from("n")), ENum(1.0)),
+                            body: vec![EReturn(Box::new(ENum(1.0)))],
+                        }),
+                        vec![
+                            IfExpr {
+                                condition: (EVar(String::from("n")), ENum(2.0)),
+                                body: vec![EReturn(Box::new(ENum(1.0)))],
+                            },
+                        ],
+                        vec![
+                            EReturn(Box::new(EAdd(
+                                Box::new(EFunCall(
+                                    fun_name.clone(),
+                                    vec![
+                                        ESub(
+                                            Box::new(EVar(String::from("n"))),
+                                            Box::new(ENum(1.0))
+                                        ),
+                                    ],
+                                )),
+                                Box::new(
+                                    EFunCall(fun_name.clone(), vec![EVar(String::from("n"))]),
+                                ),
+                            ))),
+                        ]
+                    ),
+                ],
+            )
+        );
+    }
 }
