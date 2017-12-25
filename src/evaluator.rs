@@ -35,16 +35,19 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
             let result = environment.get(varname);
             evaluate(environment, result)
         }
-        EDefun(fun_name, params, body) => {
+        EDefun(fun_name, Lambda { params, body }) => {
             (
-                environment.add(fun_name.clone(), EDefun(fun_name.clone(), params, body)),
+                environment.add(
+                    fun_name.clone(),
+                    EDefun(fun_name.clone(), Lambda { params, body }),
+                ),
                 0.0,
             )
         }
         EFunCall(func_name, args) => {
             let defun = environment.get(func_name.clone());
             match defun {
-                EDefun(_, params, body) => {
+                EDefun(_, Lambda { params, body }) => {
                     let mut cloned_environment = environment.clone();
                     params.into_iter().zip(args.into_iter()).fold(
                         &mut cloned_environment,
@@ -203,13 +206,15 @@ mod tests {
     fn test_evaluate_function_definitions() {
         let expr = EDefun(
             String::from("square"),
-            vec![String::from("n")],
-            vec![
-                EReturn(Box::new(EMul(
-                    Box::new(EVar(String::from("n"))),
-                    Box::new(EVar(String::from("n"))),
-                ))),
-            ],
+            Lambda {
+                params: vec![String::from("n")],
+                body: vec![
+                    EReturn(Box::new(EMul(
+                        Box::new(EVar(String::from("n"))),
+                        Box::new(EVar(String::from("n"))),
+                    ))),
+                ],
+            },
         );
         let mut env = Environment::new();
         let (new_env, result) = evaluate(&mut env, expr.clone());
@@ -222,17 +227,19 @@ mod tests {
         let fun_name = String::from("multiply");
         let fun_expr = EDefun(
             fun_name.clone(),
-            vec![String::from("m"), String::from("n")],
-            vec![
-                ELet(
-                    String::from("result"),
-                    Box::new(EMul(
-                        Box::new(EVar(String::from("m"))),
-                        Box::new(EVar(String::from("n"))),
-                    ))
-                ),
-                EReturn(Box::new(EVar(String::from("result")))),
-            ],
+            Lambda {
+                params: vec![String::from("m"), String::from("n")],
+                body: vec![
+                    ELet(
+                        String::from("result"),
+                        Box::new(EMul(
+                            Box::new(EVar(String::from("m"))),
+                            Box::new(EVar(String::from("n"))),
+                        ))
+                    ),
+                    EReturn(Box::new(EVar(String::from("result")))),
+                ],
+            },
         );
         let mut env = Environment::new();
         env.add(fun_name.clone(), fun_expr.clone());

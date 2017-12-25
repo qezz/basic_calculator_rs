@@ -1,4 +1,5 @@
 use nom::{digit, alpha};
+use types::Lambda;
 use types::Expr;
 use types::IfExpr;
 use types::Expr::*;
@@ -57,9 +58,9 @@ named!(defun<&str, Expr>,
        do_parse!(
            tag!("define") >>
            func_name: varname >>
-           arg: arg_list >>
+           params: arg_list >>
            body: fun_body >>
-           (parse_defun(func_name, arg, body))
+           (parse_defun(func_name, params, body))
        ));
 named!(funcall<&str, Expr>,
        do_parse!(
@@ -107,11 +108,13 @@ fn parse_return(expr: Expr) -> Expr {
     EReturn(Box::new(expr))
 }
 
-fn parse_defun(func_name: &str, arg: Vec<&str>, body: Vec<Expr>) -> Expr {
+fn parse_defun(func_name: &str, params: Vec<&str>, body: Vec<Expr>) -> Expr {
     EDefun(
         func_name.to_string(),
-        arg.into_iter().map(|s| s.to_string()).collect(),
-        body,
+        Lambda {
+            params: params.into_iter().map(|s| s.to_string()).collect(),
+            body,
+        },
     )
 }
 
@@ -248,13 +251,15 @@ mod tests {
             parsed,
             EDefun(
                 String::from("square"),
-                vec![String::from("n")],
-                vec![
-                    EReturn(Box::new(EMul(
-                        Box::new(EVar(String::from("n"))),
-                        Box::new(EVar(String::from("n"))),
-                    ))),
-                ],
+                Lambda {
+                    params: vec![String::from("n")],
+                    body: vec![
+                        EReturn(Box::new(EMul(
+                            Box::new(EVar(String::from("n"))),
+                            Box::new(EVar(String::from("n"))),
+                        ))),
+                    ],
+                },
             )
         );
     }
@@ -270,17 +275,19 @@ mod tests {
             parsed,
             EDefun(
                 String::from("multiply"),
-                vec![String::from("m"), String::from("n")],
-                vec![
-                    ELet(
-                        String::from("result"),
-                        Box::new(EMul(
-                            Box::new(EVar(String::from("m"))),
-                            Box::new(EVar(String::from("n"))),
-                        ))
-                    ),
-                    EReturn(Box::new(EVar(String::from("result")))),
-                ],
+                Lambda {
+                    params: vec![String::from("m"), String::from("n")],
+                    body: vec![
+                        ELet(
+                            String::from("result"),
+                            Box::new(EMul(
+                                Box::new(EVar(String::from("m"))),
+                                Box::new(EVar(String::from("n"))),
+                            ))
+                        ),
+                        EReturn(Box::new(EVar(String::from("result")))),
+                    ],
+                },
             )
         )
     }
@@ -378,37 +385,39 @@ mod tests {
             parsed,
             EDefun(
                 fun_name.clone(),
-                vec![String::from("n")],
-                vec![
-                    EIf(
-                        Box::new(IfExpr {
-                            condition: (EVar(String::from("n")), ENum(1.0)),
-                            body: vec![EReturn(Box::new(ENum(1.0)))],
-                        }),
-                        vec![
-                            IfExpr {
-                                condition: (EVar(String::from("n")), ENum(2.0)),
+                Lambda {
+                    params: vec![String::from("n")],
+                    body: vec![
+                        EIf(
+                            Box::new(IfExpr {
+                                condition: (EVar(String::from("n")), ENum(1.0)),
                                 body: vec![EReturn(Box::new(ENum(1.0)))],
-                            },
-                        ],
-                        vec![
-                            EReturn(Box::new(EAdd(
-                                Box::new(EFunCall(
-                                    fun_name.clone(),
-                                    vec![
-                                        ESub(
-                                            Box::new(EVar(String::from("n"))),
-                                            Box::new(ENum(1.0))
-                                        ),
-                                    ],
-                                )),
-                                Box::new(
-                                    EFunCall(fun_name.clone(), vec![EVar(String::from("n"))]),
-                                ),
-                            ))),
-                        ]
-                    ),
-                ],
+                            }),
+                            vec![
+                                IfExpr {
+                                    condition: (EVar(String::from("n")), ENum(2.0)),
+                                    body: vec![EReturn(Box::new(ENum(1.0)))],
+                                },
+                            ],
+                            vec![
+                                EReturn(Box::new(EAdd(
+                                    Box::new(EFunCall(
+                                        fun_name.clone(),
+                                        vec![
+                                            ESub(
+                                                Box::new(EVar(String::from("n"))),
+                                                Box::new(ENum(1.0))
+                                            ),
+                                        ],
+                                    )),
+                                    Box::new(
+                                        EFunCall(fun_name.clone(), vec![EVar(String::from("n"))]),
+                                    ),
+                                ))),
+                            ]
+                        ),
+                    ],
+                },
             )
         );
     }

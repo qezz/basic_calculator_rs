@@ -1,6 +1,12 @@
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct Lambda {
+    pub params: Vec<String>,
+    pub body: Vec<Expr>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct IfExpr {
     pub condition: (Expr, Expr),
     pub body: Vec<Expr>,
@@ -19,7 +25,7 @@ pub enum Expr {
     ENative(fn(f32) -> f32),
     EIf(Box<IfExpr>, Vec<IfExpr>, Vec<Expr>),
     EFunCall(String, Vec<Expr>),
-    EDefun(String, Vec<String>, Vec<Expr>),
+    EDefun(String, Lambda),
     EReturn(Box<Expr>),
 }
 
