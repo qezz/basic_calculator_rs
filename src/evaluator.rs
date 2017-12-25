@@ -56,9 +56,16 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
                     );
                     (environment, result.1)
                 }
+                ENative(f) => {
+                    //Always assuming presence of a single f32 argument. Need better error handling.
+                    let mut new_env = environment.clone();
+                    let (_, result) = evaluate(&mut new_env, args.into_iter().nth(0).unwrap());
+                    (environment, f(result))
+                }
                 _ => panic!("Undefined function {}", func_name),
             }
         }
+        ENative(_) => panic!("Runtime error. Native expressions shouldn't be evaluated directly."),
         EReturn(expr) => evaluate(environment, *expr),
     }
 }
@@ -196,5 +203,17 @@ mod tests {
 
         let (_new_env, result) = evaluate(&mut env, fun_call_expr);
         assert_eq!(result, 24.0);
+    }
+
+    #[test]
+    fn test_evaluate_native_function_calls() {
+        let fun_call_expr = EFunCall(
+            String::from("sqrt"),
+            vec![EMul(Box::new(ENum(3.0)), Box::new(ENum(3.0)))],
+        );
+        let mut env = Environment::new();
+
+        let (_new_env, result) = evaluate(&mut env, fun_call_expr);
+        assert_eq!(result, 3.0);
     }
 }
