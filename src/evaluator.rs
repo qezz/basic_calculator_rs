@@ -2,48 +2,29 @@ use types::*;
 use types::Expr::*;
 use types::EnvValue::*;
 
-pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment, f32) {
+pub fn evaluate(environment: &mut Environment, expr: Expr) -> f32 {
     match expr {
-        ENum(num) => (environment, num),
-        EAdd(expr1, expr2) => {
-            let result = evaluate(environment, *expr1).1 + evaluate(environment, *expr2).1;
-            (environment, result)
-        }
-        ESub(expr1, expr2) => {
-            let result = evaluate(environment, *expr1).1 - evaluate(environment, *expr2).1;
-            (environment, result)
-        }
-        EMul(expr1, expr2) => {
-            let result = evaluate(environment, *expr1).1 * evaluate(environment, *expr2).1;
-            (environment, result)
-        }
-        EDiv(expr1, expr2) => {
-            let result = evaluate(environment, *expr1).1 / evaluate(environment, *expr2).1;
-            (environment, result)
-        }
-        EExp(expr1, expr2) => {
-            let result = evaluate(environment, *expr1).1.powf(
-                evaluate(environment, *expr2)
-                    .1,
-            );
-            (environment, result)
-        }
+        ENum(num) => num,
+        EAdd(expr1, expr2) => evaluate(environment, *expr1) + evaluate(environment, *expr2),
+        ESub(expr1, expr2) => evaluate(environment, *expr1) - evaluate(environment, *expr2),
+        EMul(expr1, expr2) => evaluate(environment, *expr1) * evaluate(environment, *expr2),
+        EDiv(expr1, expr2) => evaluate(environment, *expr1) / evaluate(environment, *expr2),
+        EExp(expr1, expr2) => evaluate(environment, *expr1).powf(evaluate(environment, *expr2)),
         ELet(varname, expr) => {
-            let (old_env, result) = evaluate(environment, *expr.clone());
-            (old_env.add(varname, ComputedResult(result)), result)
+            let result = evaluate(environment, *expr.clone());
+            environment.add(varname, ComputedResult(result));
+            result
         }
         EVar(varname) => {
             let result = environment.get(varname.clone());
             match result {
-                ComputedResult(v) => (environment, v),
+                ComputedResult(v) => v,
                 _ => panic!("Unknown variable: {}", varname.clone()),
             }
         }
         EDefun(fun_name, Lambda { params, body }) => {
-            (
-                environment.add(fun_name.clone(), LambdaRef(Lambda { params, body })),
-                0.0,
-            )
+            environment.add(fun_name.clone(), LambdaRef(Lambda { params, body }));
+            0.0
         }
         EFunCall(func_name, args) => {
             let defun = environment.get(func_name.clone());
@@ -52,24 +33,21 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
                     let mut cloned_environment1 = environment.clone();
                     let mut cloned_environment2 = environment.clone();
                     let args = args.into_iter().map(|arg| {
-                        let result = evaluate(&mut cloned_environment1, arg);
-                        ComputedResult(result.1)
+                        ComputedResult(evaluate(&mut cloned_environment1, arg))
                     });
                     params.into_iter().zip(args.into_iter()).fold(
                         &mut cloned_environment2,
                         |env, value| env.add(value.0, value.1),
                     );
-                    let result = body.into_iter().fold(
-                        (&mut cloned_environment2, 0.0),
-                        |env, expr| evaluate(env.0, expr),
-                    );
-                    (environment, result.1)
+                    let result = body.into_iter().fold(0.0, |_env, expr| {
+                        evaluate(&mut cloned_environment2, expr)
+                    });
+                    result
                 }
                 NativeFn(f) => {
                     //Always assuming presence of a single f32 argument. Need better error handling.
-                    let mut new_env = environment.clone();
-                    let (_, result) = evaluate(&mut new_env, args.into_iter().nth(0).unwrap());
-                    (environment, f(result))
+                    let result = evaluate(environment, args.into_iter().nth(0).unwrap());
+                    f(result)
                 }
                 _ => panic!("Undefined function {}", func_name),
             }
@@ -77,41 +55,38 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
         EReturn(expr) => evaluate(environment, *expr),
         EIf(ifexpr, elseifexprs, elsebody) => {
             let (lhs, rhs) = ifexpr.clone().condition;
-            let (_, lhsresult) = evaluate(environment, lhs);
-            let (_, rhsresult) = evaluate(environment, rhs);
+            let lhsresult = evaluate(environment, lhs);
+            let rhsresult = evaluate(environment, rhs);
             if lhsresult == rhsresult {
                 let mut cloned_environment = environment.clone();
-                let result = ifexpr.body.into_iter().fold(
-                    (&mut cloned_environment, 0.0),
-                    |env, expr| evaluate(env.0, expr),
-                );
-                (environment, result.1)
+                let result = ifexpr.body.into_iter().fold(0.0, |_env, expr| {
+                    evaluate(&mut cloned_environment, expr)
+                });
+                result
             } else {
                 let mut cloned_environment = environment.clone();
                 let maybe_else_if_result = elseifexprs
                     .into_iter()
                     .map(|ifexpr| {
                         let (lhs, rhs) = ifexpr.clone().condition;
-                        let (_, lhsresult) = evaluate(environment, lhs);
-                        let (_, rhsresult) = evaluate(environment, rhs);
+                        let lhsresult = evaluate(environment, lhs);
+                        let rhsresult = evaluate(environment, rhs);
                         (lhsresult == rhsresult, ifexpr.body)
                     })
                     .find(|pair| pair.0 == true)
                     .map(|p| {
-                        let result = p.1.into_iter().fold(
-                            (&mut cloned_environment, 0.0),
-                            |env, expr| evaluate(env.0, expr),
-                        );
-                        result.1
+                        let result = p.1.into_iter().fold(0.0, |_env, expr| {
+                            evaluate(&mut cloned_environment, expr)
+                        });
+                        result
                     });
                 let result = maybe_else_if_result.unwrap_or_else(|| {
-                    let result = elsebody.into_iter().fold(
-                        (&mut cloned_environment, 0.0),
-                        |env, expr| evaluate(env.0, expr),
-                    );
-                    result.1
+                    let result = elsebody.into_iter().fold(0.0, |_env, expr| {
+                        evaluate(&mut cloned_environment, expr)
+                    });
+                    result
                 });
-                (environment, result)
+                result
             }
         }
     }
@@ -125,25 +100,25 @@ mod tests {
     #[test]
     fn test_evaluate_add_expression() {
         let expr = EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)));
-        assert_eq!(evaluate(&mut Environment::new(), expr).1, 3.0);
+        assert_eq!(evaluate(&mut Environment::new(), expr), 3.0);
     }
 
     #[test]
     fn test_evaluate_subtraction_expression() {
         let expr = ESub(Box::new(ENum(3.0)), Box::new(ENum(2.0)));
-        assert_eq!(evaluate(&mut Environment::new(), expr).1, 1.0);
+        assert_eq!(evaluate(&mut Environment::new(), expr), 1.0);
     }
 
     #[test]
     fn test_evaluate_multiplication_expression() {
         let expr = EMul(Box::new(ENum(3.0)), Box::new(ENum(2.0)));
-        assert_eq!(evaluate(&mut Environment::new(), expr).1, 6.0);
+        assert_eq!(evaluate(&mut Environment::new(), expr), 6.0);
     }
 
     #[test]
     fn test_evaluate_division_expression() {
         let expr = EDiv(Box::new(ENum(3.0)), Box::new(ENum(2.0)));
-        assert_eq!(evaluate(&mut Environment::new(), expr).1, 1.5);
+        assert_eq!(evaluate(&mut Environment::new(), expr), 1.5);
     }
 
     #[test]
@@ -155,7 +130,7 @@ mod tests {
                 Box::new(ENum(5.0)),
             )),
         );
-        assert_eq!(evaluate(&mut Environment::new(), expr).1, 9.2);
+        assert_eq!(evaluate(&mut Environment::new(), expr), 9.2);
     }
 
     #[test]
@@ -164,9 +139,8 @@ mod tests {
         let let_expr = EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)));
         let expr = ELet(var_name.clone(), Box::new(let_expr.clone()));
         let mut env = Environment::new();
-        let (new_env, result) = evaluate(&mut env, expr.clone());
-        assert_eq!(result, 3.0);
-        assert_eq!(new_env.get(var_name.clone()), ComputedResult(3.0));
+        assert_eq!(evaluate(&mut env, expr.clone()), 3.0);
+        assert_eq!(env.get(var_name.clone()), ComputedResult(3.0));
     }
 
     #[test]
@@ -183,16 +157,14 @@ mod tests {
         );
         let mut env = Environment::new();
         env.add(var_name.clone(), ComputedResult(20.0));
-        let (_new_env, result) = evaluate(&mut env, expr);
-        assert_eq!(result, 60.0);
+        assert_eq!(evaluate(&mut env, expr), 60.0);
     }
 
     #[test]
     fn test_evaluate_simple_return_statements() {
         let expr = EReturn(Box::new(EMul(Box::new(ENum(3.0)), Box::new(ENum(2.0)))));
         let mut env = Environment::new();
-        let (_new_env, result) = evaluate(&mut env, expr);
-        assert_eq!(result, 6.0);
+        assert_eq!(evaluate(&mut env, expr), 6.0);
     }
 
     #[test]
@@ -203,8 +175,7 @@ mod tests {
         ));
         let mut env = Environment::new();
         env.add(var_name.clone(), ComputedResult(2.0));
-        let (_new_env, result) = evaluate(&mut env, expr);
-        assert_eq!(result, 6.0);
+        assert_eq!(evaluate(&mut env, expr), 6.0);
     }
 
     #[test]
@@ -220,11 +191,8 @@ mod tests {
         };
         let expr = EDefun(String::from("square"), lambda.clone());
         let mut env = Environment::new();
-        let (new_env, result) = evaluate(&mut env, expr);
-        assert_eq!(
-            new_env.get(String::from("square")),
-            LambdaRef(lambda.clone())
-        );
+        let result = evaluate(&mut env, expr);
+        assert_eq!(env.get(String::from("square")), LambdaRef(lambda.clone()));
         assert_eq!(result, 0.0);
     }
 
@@ -251,8 +219,7 @@ mod tests {
         let first_arg_expr = EMul(Box::new(ENum(2.0)), Box::new(ENum(3.0)));
         let fun_call_expr = EFunCall(fun_name.clone(), vec![first_arg_expr, ENum(4.0)]);
 
-        let (_new_env, result) = evaluate(&mut env, fun_call_expr);
-        assert_eq!(result, 24.0);
+        assert_eq!(evaluate(&mut env, fun_call_expr), 24.0);
     }
 
     #[test]
@@ -263,8 +230,7 @@ mod tests {
         );
         let mut env = Environment::new();
 
-        let (_new_env, result) = evaluate(&mut env, fun_call_expr);
-        assert_eq!(result, 3.0);
+        assert_eq!(evaluate(&mut env, fun_call_expr), 3.0);
     }
 
     #[test]
@@ -280,8 +246,7 @@ mod tests {
         let mut env = Environment::new();
         env.add(String::from("n"), ComputedResult(1.0));
 
-        let (_new_env, result) = evaluate(&mut env, if_expr);
-        assert_eq!(result, 1.0);
+        assert_eq!(evaluate(&mut env, if_expr), 1.0);
     }
 
     #[test]
@@ -297,8 +262,7 @@ mod tests {
         let mut env = Environment::new();
         env.add(String::from("n"), ComputedResult(1.0));
 
-        let (_new_env, result) = evaluate(&mut env, if_expr);
-        assert_eq!(result, 2.0);
+        assert_eq!(evaluate(&mut env, if_expr), 2.0);
     }
 
     #[test]
@@ -332,8 +296,7 @@ mod tests {
         let mut env = Environment::new();
         env.add(String::from("n"), ComputedResult(3.0));
 
-        let (_new_env, result) = evaluate(&mut env, if_expr);
-        assert_eq!(result, 16.0);
+        assert_eq!(evaluate(&mut env, if_expr), 16.0);
     }
 
     #[test]
@@ -383,7 +346,6 @@ mod tests {
 
         let fun_call_expr = EFunCall(fun_name.clone(), vec![ENum(4.0)]);
 
-        let (_new_env, result) = evaluate(&mut env, fun_call_expr);
-        assert_eq!(result, 3.0);
+        assert_eq!(evaluate(&mut env, fun_call_expr), 3.0);
     }
 }
