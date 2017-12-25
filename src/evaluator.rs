@@ -335,4 +335,55 @@ mod tests {
         let (_new_env, result) = evaluate(&mut env, if_expr);
         assert_eq!(result, 16.0);
     }
+
+    #[test]
+    fn test_evaluate_recursive_function_calls() {
+        let fun_name = String::from("fibrecursive");
+        let recursive_function = Lambda {
+            params: vec![String::from("n")],
+            body: vec![
+                EIf(
+                    Box::new(IfExpr {
+                        condition: (EVar(String::from("n")), ENum(1.0)),
+                        body: vec![EReturn(Box::new(ENum(1.0)))],
+                    }),
+                    vec![
+                        IfExpr {
+                            condition: (EVar(String::from("n")), ENum(2.0)),
+                            body: vec![EReturn(Box::new(ENum(1.0)))],
+                        },
+                    ],
+                    vec![
+                        EReturn(Box::new(EAdd(
+                            Box::new(EFunCall(
+                                fun_name.clone(),
+                                vec![
+                                    ESub(
+                                        Box::new(EVar(String::from("n"))),
+                                        Box::new(ENum(1.0))
+                                    ),
+                                ],
+                            )),
+                            Box::new(EFunCall(
+                                fun_name.clone(),
+                                vec![
+                                    ESub(
+                                        Box::new(EVar(String::from("n"))),
+                                        Box::new(ENum(2.0))
+                                    ),
+                                ],
+                            )),
+                        ))),
+                    ]
+                ),
+            ],
+        };
+        let mut env = Environment::new();
+        env.add(fun_name.clone(), LambdaRef(recursive_function));
+
+        let fun_call_expr = EFunCall(fun_name.clone(), vec![ENum(4.0)]);
+
+        let (_new_env, result) = evaluate(&mut env, fun_call_expr);
+        assert_eq!(result, 3.0);
+    }
 }
