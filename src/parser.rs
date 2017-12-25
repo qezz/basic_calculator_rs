@@ -7,55 +7,47 @@ use std::str::FromStr;
 // Use the classic solution to break left recursion in a LL(1) recursive descent parser
 // Solution can be found here: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#classic
 
-// Parse numbers as floats
 named!(num<&str, Expr>, map!(ws!(digit),  parse_num));
-// Parse an expression with parantheses
-named!(parens<&str, Expr>, delimited!(ws!(char!('(')), expr, ws!(char!(')'))));
-// An operation is either a number or a parantesised expression
-named!(operation<&str, Expr>, alt!(num | parens | return_statement | map!(varname, parse_evar)));
-// A factor is either a single operation or one followed by ^ and another factor
+named!(parens<&str, Expr>, ws!(delimited!(char!('('), mathexpr, char!(')'))));
+named!(operation<&str, Expr>, alt!( complete!(funcall) | map!(varname, parse_evar) | num | parens));
 named!(factor<&str, Expr>,
        do_parse!(
            op: operation >>
            rem: many0!(tuple!(char!('^'), factor)) >>
            (parse_expr(op, rem))
        ));
-// A term is either a single factor or one followed by a (* or /) and another factor
 named!(term<&str, Expr>,
        do_parse!(
            f: factor >>
            rem: many0!(tuple!(alt!(char!('*') | char!('/')), factor)) >>
            (parse_expr(f, rem))
        ));
-// A sub-expression is either a single term or one followed by a (+ or -) and another term
-named!(subexpr<&str, Expr>,
+named!(mathexpr<&str, Expr>,
        do_parse!(
            t: term >>
            rem: many0!(tuple!(alt!(char!('+') | char!('-')), term)) >>
            (parse_expr(t, rem))
        ));
-// a variable name is just a series of alphabets. We don't want alphanumeric variable names for now.
 named!(varname<&str, &str>, ws!(alpha));
-// a let expression is the let keyword, followed by a variable name, then an equals sign and finally any expression
 named!(let_expr<&str, Expr>,
        do_parse!(
            tag!("let") >>
            var_name: varname >>
            char!('=') >>
-           expr: expr >>
+           expr: mathexpr >>
            (parse_let(var_name, expr))
        ));
 named!(return_statement<&str, Expr>,
        do_parse!(
            tag!("return") >>
-           expr: expr >>
+           expr: mathexpr >>
            (parse_return(expr))
        ));
 named!(fun_body<&str, Vec<Expr>>,
        do_parse!(
            ws!(char!('{')) >>
            opt!(char!('\n')) >>
-           exprs: many0!(terminated!(ws!(expr), char!(';'))) >>
+           exprs: many0!(terminated!(ws!(nested_expr), char!(';'))) >>
            opt!(char!('\n')) >>
            ws!(char!('}')) >>
            (exprs)
@@ -72,7 +64,7 @@ named!(defun<&str, Expr>,
 named!(funcall<&str, Expr>,
        do_parse!(
            func_name: varname >>
-           args: delimited!(char!('('), separated_list!(char!(','), expr), char!(')')) >>
+           args: ws!(delimited!(char!('('), separated_list!(char!(','), expr), char!(')'))) >>
            (parse_funcall(func_name, args))
        ));
 named!(if_cond<&str, (Expr, Expr)>, delimited!(char!('('), separated_pair!(expr, ws!(tag!("==")), expr), char!(')')));
@@ -96,8 +88,8 @@ named!(ifexpr<&str, Expr>,
            else_body: else_expr >>
            (parse_if_expression(if_body, else_ifs, else_body))
        ));
-// an expression is either a let expression or a sub expression, with them former getting higher priority
-named!(pub expr<&str, Expr>, alt!(defun | ifexpr | funcall | let_expr | subexpr));
+named!(nested_expr<&str, Expr>, alt!(let_expr | ifexpr | return_statement | mathexpr));
+named!(pub expr<&str, Expr>, alt!(defun | nested_expr));
 
 fn parse_if_expression(if_body: IfExpr, else_ifs: Vec<IfExpr>, else_body: Vec<Expr>) -> Expr {
     EIf(Box::new(if_body), else_ifs, else_body)
