@@ -13,6 +13,13 @@ pub struct IfExpr {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum EnvValue {
+    ComputedResult(f32),
+    LambdaRef(Lambda),
+    NativeFn(fn(f32) -> f32),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     ENum(f32),
     EVar(String),
@@ -22,7 +29,6 @@ pub enum Expr {
     EDiv(Box<Expr>, Box<Expr>),
     EExp(Box<Expr>, Box<Expr>),
     ELet(String, Box<Expr>),
-    ENative(fn(f32) -> f32),
     EIf(Box<IfExpr>, Vec<IfExpr>, Vec<Expr>),
     EFunCall(String, Vec<Expr>),
     EDefun(String, Lambda),
@@ -30,21 +36,21 @@ pub enum Expr {
 }
 
 #[derive(Clone)]
-pub struct Environment(pub HashMap<String, Expr>);
+pub struct Environment(pub HashMap<String, EnvValue>);
 
-use self::Expr::ENative;
+use self::EnvValue::*;
 
 impl Environment {
     pub fn new() -> Environment {
         let mut env = Environment(HashMap::new());
         let fun_name = String::from("sqrt");
-        env.add(fun_name.clone(), ENative(|x| x.sqrt()));
+        env.add(fun_name.clone(), NativeFn(|x| x.sqrt()));
         env
     }
-    pub fn get(&self, var_name: String) -> Expr {
+    pub fn get(&self, var_name: String) -> EnvValue {
         self.0.get(&var_name).unwrap().clone()
     }
-    pub fn add(&mut self, var_name: String, result: Expr) -> &mut Environment {
+    pub fn add(&mut self, var_name: String, result: EnvValue) -> &mut Environment {
         &self.0.insert(var_name, result);
         self
     }
