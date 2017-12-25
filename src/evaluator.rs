@@ -67,7 +67,45 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
         }
         ENative(_) => panic!("Runtime error. Native expressions shouldn't be evaluated directly."),
         EReturn(expr) => evaluate(environment, *expr),
-        EIf(_, _, _) => (environment, 0.0),
+        EIf(ifexpr, elseifexprs, elsebody) => {
+            let (lhs, rhs) = ifexpr.clone().condition;
+            let (_, lhsresult) = evaluate(environment, lhs);
+            let (_, rhsresult) = evaluate(environment, rhs);
+            if lhsresult == rhsresult {
+                let mut cloned_environment = environment.clone();
+                let result = ifexpr.body.into_iter().fold(
+                    (&mut cloned_environment, 0.0),
+                    |env, expr| evaluate(env.0, expr),
+                );
+                (environment, result.1)
+            } else {
+                let mut cloned_environment = environment.clone();
+                let maybe_else_if_result = elseifexprs
+                    .into_iter()
+                    .map(|ifexpr| {
+                        let (lhs, rhs) = ifexpr.clone().condition;
+                        let (_, lhsresult) = evaluate(environment, lhs);
+                        let (_, rhsresult) = evaluate(environment, rhs);
+                        (lhsresult == rhsresult, ifexpr.body)
+                    })
+                    .find(|pair| pair.0 == true)
+                    .map(|p| {
+                        let result = p.1.into_iter().fold(
+                            (&mut cloned_environment, 0.0),
+                            |env, expr| evaluate(env.0, expr),
+                        );
+                        result.1
+                    });
+                let result = maybe_else_if_result.unwrap_or_else(|| {
+                    let result = elsebody.into_iter().fold(
+                        (&mut cloned_environment, 0.0),
+                        |env, expr| evaluate(env.0, expr),
+                    );
+                    result.1
+                });
+                (environment, result)
+            }
+        }
     }
 }
 
@@ -216,5 +254,74 @@ mod tests {
 
         let (_new_env, result) = evaluate(&mut env, fun_call_expr);
         assert_eq!(result, 3.0);
+    }
+
+    #[test]
+    fn test_evaluate_simple_if_statements_when_condition_is_true() {
+        let if_expr = EIf(
+            Box::new(IfExpr {
+                condition: (EVar(String::from("n")), ENum(1.0)),
+                body: vec![EReturn(Box::new(ENum(1.0)))],
+            }),
+            vec![],
+            vec![EReturn(Box::new(ENum(2.0)))],
+        );
+        let mut env = Environment::new();
+        env.add(String::from("n"), ENum(1.0));
+
+        let (_new_env, result) = evaluate(&mut env, if_expr);
+        assert_eq!(result, 1.0);
+    }
+
+    #[test]
+    fn test_evaluate_simple_if_statements_when_condition_is_false() {
+        let if_expr = EIf(
+            Box::new(IfExpr {
+                condition: (EVar(String::from("n")), ENum(2.0)),
+                body: vec![EReturn(Box::new(ENum(1.0)))],
+            }),
+            vec![],
+            vec![EReturn(Box::new(ENum(2.0)))],
+        );
+        let mut env = Environment::new();
+        env.add(String::from("n"), ENum(1.0));
+
+        let (_new_env, result) = evaluate(&mut env, if_expr);
+        assert_eq!(result, 2.0);
+    }
+
+    #[test]
+    fn test_evaluate_simple_if_else_if_statements_when_if_condition_is_false() {
+        let if_statement = IfExpr {
+            condition: (EVar(String::from("n")), ENum(1.0)),
+            body: vec![EReturn(Box::new(ENum(1.0)))],
+        };
+        let first_else_if = IfExpr {
+            condition: (EVar(String::from("n")), ENum(2.0)),
+            body: vec![
+                ELet(String::from("x"), Box::new(ENum(3.0))),
+                EReturn(Box::new(EVar(String::from("x")))),
+            ],
+        };
+        let second_else_if = IfExpr {
+            condition: (EVar(String::from("n")), ENum(3.0)),
+            body: vec![
+                ELet(String::from("y"), Box::new(ENum(4.0))),
+                EReturn(Box::new(EMul(
+                    Box::new(EVar(String::from("y"))),
+                    Box::new(EVar(String::from("y"))),
+                ))),
+            ],
+        };
+        let if_expr = EIf(
+            Box::new(if_statement),
+            vec![first_else_if, second_else_if],
+            vec![EReturn(Box::new(ENum(2.0)))],
+        );
+        let mut env = Environment::new();
+        env.add(String::from("n"), ENum(3.0));
+
+        let (_new_env, result) = evaluate(&mut env, if_expr);
+        assert_eq!(result, 16.0);
     }
 }
