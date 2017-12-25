@@ -67,6 +67,7 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> (&mut Environment,
         }
         ENative(_) => panic!("Runtime error. Native expressions shouldn't be evaluated directly."),
         EReturn(expr) => evaluate(environment, *expr),
+        EIf(_, _, _) => (environment, 0.0),
     }
 }
 

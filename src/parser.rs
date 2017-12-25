@@ -1,5 +1,6 @@
 use nom::{digit, alpha};
 use types::Expr;
+use types::IfExpr;
 use types::Expr::*;
 use std::str::FromStr;
 
@@ -34,7 +35,7 @@ named!(subexpr<&str, Expr>,
            (parse_expr(t, rem))
        ));
 // a variable name is just a series of alphabets. We don't want alphanumeric variable names for now.
-named!(pub varname<&str, &str>, ws!(alpha));
+named!(varname<&str, &str>, ws!(alpha));
 // a let expression is the let keyword, followed by a variable name, then an equals sign and finally any expression
 named!(let_expr<&str, Expr>,
        do_parse!(
@@ -74,8 +75,37 @@ named!(funcall<&str, Expr>,
            args: delimited!(char!('('), separated_list!(char!(','), expr), char!(')')) >>
            (parse_funcall(func_name, args))
        ));
-// an expression is either a let expression or a sub expression, with the former getting higher priority
-named!(pub expr<&str, Expr>, alt!(defun | funcall | let_expr | subexpr));
+named!(if_cond<&str, (Expr, Expr)>, delimited!(char!('('), separated_pair!(expr, ws!(tag!("==")), expr), char!(')')));
+named!(single_if<&str, IfExpr>,
+       do_parse!(
+           ws!(tag!("if")) >>
+           cond: if_cond >>
+           body: fun_body >>
+           (parse_single_if(cond, body))
+       ));
+named!(else_expr<&str, Vec<Expr>>,
+       do_parse!(
+           tag!("else") >>
+           body: fun_body >>
+           (body)
+       ));
+named!(ifexpr<&str, Expr>,
+       do_parse!(
+           if_body: single_if >>
+           else_ifs: many0!(do_parse!(tag!("else") >> if_body: single_if >> (if_body))) >>
+           else_body: else_expr >>
+           (parse_if_expression(if_body, else_ifs, else_body))
+       ));
+// an expression is either a let expression or a sub expression, with them former getting higher priority
+named!(pub expr<&str, Expr>, alt!(defun | ifexpr | funcall | let_expr | subexpr));
+
+fn parse_if_expression(if_body: IfExpr, else_ifs: Vec<IfExpr>, else_body: Vec<Expr>) -> Expr {
+    EIf(Box::new(if_body), else_ifs, else_body)
+}
+
+fn parse_single_if(condition: (Expr, Expr), body: Vec<Expr>) -> IfExpr {
+    IfExpr { condition, body }
+}
 
 fn parse_funcall(name: &str, args: Vec<Expr>) -> Expr {
     EFunCall(name.to_string(), args)
@@ -270,6 +300,72 @@ mod tests {
         assert_eq!(
             parsed,
             EFunCall(String::from("multiply"), vec![ENum(5.0), ENum(6.0)])
+        );
+    }
+
+    #[test]
+    fn test_parses_simple_if_else_statement() {
+        let if_definition = "if (n == 1) {
+             return 1;
+            } else {
+             return 2;
+            }";
+        let (_rem, parsed) = expr(if_definition).unwrap();
+        assert_eq!(
+            parsed,
+            EIf(
+                Box::new(IfExpr {
+                    condition: (EVar(String::from("n")), ENum(1.0)),
+                    body: vec![EReturn(Box::new(ENum(1.0)))],
+                }),
+                vec![],
+                vec![EReturn(Box::new(ENum(2.0)))],
+            )
+        );
+    }
+
+    #[test]
+    fn test_parses_if_else_if_statement() {
+        let if_definition = "if (n == 1) {
+             return 1;
+            } else if(n == 2) {
+             let x = 3;
+             return x;
+            } else if(n==3) {
+             let y = 4;
+             return y * y;
+            } else {
+             return 2;
+            }";
+        let (_rem, parsed) = expr(if_definition).unwrap();
+        assert_eq!(
+            parsed,
+            EIf(
+                Box::new(IfExpr {
+                    condition: (EVar(String::from("n")), ENum(1.0)),
+                    body: vec![EReturn(Box::new(ENum(1.0)))],
+                }),
+                vec![
+                    IfExpr {
+                        condition: (EVar(String::from("n")), ENum(2.0)),
+                        body: vec![
+                            ELet(String::from("x"), Box::new(ENum(3.0))),
+                            EReturn(Box::new(EVar(String::from("x")))),
+                        ],
+                    },
+                    IfExpr {
+                        condition: (EVar(String::from("n")), ENum(3.0)),
+                        body: vec![
+                            ELet(String::from("y"), Box::new(ENum(4.0))),
+                            EReturn(Box::new(EMul(
+                                Box::new(EVar(String::from("y"))),
+                                Box::new(EVar(String::from("y"))),
+                            ))),
+                        ],
+                    },
+                ],
+                vec![EReturn(Box::new(ENum(2.0)))],
+            )
         );
     }
 }
