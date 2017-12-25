@@ -30,17 +30,16 @@ pub fn evaluate(environment: &mut Environment, expr: Expr) -> f32 {
             let defun = environment.get(func_name.clone());
             match defun {
                 LambdaRef(Lambda { params, body }) => {
-                    let mut cloned_environment1 = environment.clone();
-                    let mut cloned_environment2 = environment.clone();
+                    let mut cloned_environment = environment.clone();
                     let args = args.into_iter().map(|arg| {
-                        ComputedResult(evaluate(&mut cloned_environment1, arg))
+                        ComputedResult(evaluate(environment, arg))
                     });
                     params.into_iter().zip(args.into_iter()).fold(
-                        &mut cloned_environment2,
+                        &mut cloned_environment,
                         |env, value| env.add(value.0, value.1),
                     );
                     let result = body.into_iter().fold(0.0, |_env, expr| {
-                        evaluate(&mut cloned_environment2, expr)
+                        evaluate(&mut cloned_environment, expr)
                     });
                     result
                 }
