@@ -17,78 +17,79 @@ pub fn evaluate(env: &mut Environment, expr: Expr) -> MyResult {
             Ok(result)
         }
         EVar(varname) => {
-            let result = env.get(varname.clone());
-            result
-                .map(|r| match r {
+            if let Some(result) = env.get(varname.clone()) {
+                match result {
                     ComputedResult(v) => Ok(v),
-                    _ => Err(UndefinedVariable(varname.clone())),
-                })
-                .unwrap_or_else(|| Err(UndefinedVariable(varname.clone())))
+                    _ => Err(InvalidVariableReference(varname.clone())),
+                }
+            } else {
+                Err(UndefinedVariable(varname.clone()))
+            }
         }
         EDefun(fun_name, Lambda { params, body }) => {
             env.add(fun_name.clone(), LambdaRef(Lambda { params, body }));
             Ok(0.0)
         }
         EFunCall(func_name, args) => {
-            env.get(func_name.clone()).map(|defun| match defun {
-                LambdaRef(Lambda { params, body }) => {
-                    let mut cloned_environment = env.clone();
-                    let maybe_args: Result<Vec<f32>, _> = args.into_iter().map(|arg| {
-                        evaluate(env, arg)
-                    }).collect();
-                    let args = maybe_args?;
-                    params.into_iter().zip(args.into_iter()).fold(
-                        &mut cloned_environment,
-                        |env, value| env.add(value.0, ComputedResult(value.1)),
-                    );
-                    body.into_iter().fold(Ok(0.0), |_, expr| {
-                        evaluate(&mut cloned_environment, expr)
-                    })
+            if let Some(defun) = env.get(func_name.clone()) {
+                match defun {
+                    LambdaRef(Lambda { params, body }) => {
+                        if args.len() != params.len() {
+                            Err(InvalidLambdaArgs(params.len(), args.len()))
+                        } else {
+                            let mut cloned_environment = env.clone();
+                            let maybe_args: Result<Vec<f32>, _> =
+                                args.into_iter().map(|arg| evaluate(env, arg)).collect();
+                            params.into_iter().zip(maybe_args?.into_iter()).fold(
+                                &mut cloned_environment,
+                                |env, value| env.add(value.0, ComputedResult(value.1)),
+                            );
+                            body.into_iter().fold(Ok(0.0), |_, expr| {
+                                evaluate(&mut cloned_environment, expr)
+                            })
+                        }
+                    }
+                    NativeFn(f) => {
+                        if args.len() > 1 {
+                            Err(InvalidNativeFunctionArgs(args.len()))
+                        } else {
+                            let result = evaluate(env, args.into_iter().nth(0).unwrap())?;
+                            Ok(f(result))
+                        }
+                    }
+                    _ => Err(InvalidFunctionReference(func_name.clone())),
                 }
-                NativeFn(f) => {
-                    //Always assuming presence of a single f32 argument. Need better error handling.
-                    let result = evaluate(env, args.into_iter().nth(0).unwrap())?;
-                    Ok(f(result))
-                }
-                _ => Err(UndefinedFunction(func_name.clone()))
-            }).unwrap_or_else(|| Err(UndefinedFunction(func_name.clone())))
+            } else {
+                Err(UndefinedFunction(func_name.clone()))
+            }
         }
         EReturn(expr) => evaluate(env, *expr),
-        EIf(ifexpr, elseifexprs, elsebody) => {
-            let (lhs, rhs) = ifexpr.clone().condition;
-            let lhsresult = evaluate(env, lhs)?;
-            let rhsresult = evaluate(env, rhs)?;
-            if lhsresult == rhsresult {
-                let mut cloned_environment = env.clone();
-                ifexpr.body.into_iter().fold(Ok(0.0), |_, expr| {
-                    evaluate(&mut cloned_environment, expr)
+        EIf(ifexprs, elseexpr) => {
+            let bools: Result<Vec<bool>, _> = ifexprs
+                .iter()
+                .map(|ifexpr| {
+                    let (lhs, rhs) = ifexpr.clone().condition;
+                    Ok(evaluate(env, lhs)? == evaluate(env, rhs)?)
                 })
-            } else {
-                let maybe_else_if_result: MyResult = elseifexprs.into_iter().fold(
-                    Err(UnknownError),
-                    |_, ifexpr| {
-                        let (lhs, rhs): (Expr, Expr) = ifexpr.clone().condition;
-                        let lhsresult = evaluate(env, lhs)?;
-                        let rhsresult = evaluate(env, rhs)?;
-                        if lhsresult == rhsresult {
-                            let mut cloned_environment = env.clone();
-                            let result = ifexpr.body.into_iter().fold(Ok(0.0), |_env, expr| {
-                                evaluate(&mut cloned_environment, expr)
-                            });
-                            result
-                        } else {
-                            Err(UnknownError)
-                        }
-                    },
-                );
-                maybe_else_if_result.or_else(|_e| {
+                .collect();
+            ifexprs
+                .into_iter()
+                .zip(bools?.into_iter())
+                .find(|p| p.1 == true)
+                .map(|(ex, _)| {
                     let mut cloned_environment = env.clone();
-                    elsebody.into_iter().fold(
+                    let result = ex.body.into_iter().fold(Ok(0.0), |_, expr| {
+                        evaluate(&mut cloned_environment, expr)
+                    });
+                    result
+                })
+                .unwrap_or_else(|| {
+                    let mut cloned_environment = env.clone();
+                    elseexpr.into_iter().fold(
                         Ok(0.0),
                         |_env, expr| evaluate(&mut cloned_environment, expr),
                     )
                 })
-            }
         }
     }
 }
@@ -240,11 +241,12 @@ mod tests {
     #[test]
     fn test_evaluate_simple_if_statements_when_condition_is_true() {
         let if_expr = EIf(
-            Box::new(IfExpr {
-                condition: (EVar(String::from("n")), ENum(1.0)),
-                body: vec![EReturn(Box::new(ENum(1.0)))],
-            }),
-            vec![],
+            vec![
+                IfExpr {
+                    condition: (EVar(String::from("n")), ENum(1.0)),
+                    body: vec![EReturn(Box::new(ENum(1.0)))],
+                },
+            ],
             vec![EReturn(Box::new(ENum(2.0)))],
         );
         let mut env = Environment::new();
@@ -256,11 +258,12 @@ mod tests {
     #[test]
     fn test_evaluate_simple_if_statements_when_condition_is_false() {
         let if_expr = EIf(
-            Box::new(IfExpr {
-                condition: (EVar(String::from("n")), ENum(2.0)),
-                body: vec![EReturn(Box::new(ENum(1.0)))],
-            }),
-            vec![],
+            vec![
+                IfExpr {
+                    condition: (EVar(String::from("n")), ENum(2.0)),
+                    body: vec![EReturn(Box::new(ENum(1.0)))],
+                },
+            ],
             vec![EReturn(Box::new(ENum(2.0)))],
         );
         let mut env = Environment::new();
@@ -293,8 +296,7 @@ mod tests {
             ],
         };
         let if_expr = EIf(
-            Box::new(if_statement),
-            vec![first_else_if, second_else_if],
+            vec![if_statement, first_else_if, second_else_if],
             vec![EReturn(Box::new(ENum(2.0)))],
         );
         let mut env = Environment::new();
@@ -310,11 +312,11 @@ mod tests {
             params: vec![String::from("n")],
             body: vec![
                 EIf(
-                    Box::new(IfExpr {
-                        condition: (EVar(String::from("n")), ENum(1.0)),
-                        body: vec![EReturn(Box::new(ENum(1.0)))],
-                    }),
                     vec![
+                        IfExpr {
+                            condition: (EVar(String::from("n")), ENum(1.0)),
+                            body: vec![EReturn(Box::new(ENum(1.0)))],
+                        },
                         IfExpr {
                             condition: (EVar(String::from("n")), ENum(2.0)),
                             body: vec![EReturn(Box::new(ENum(1.0)))],

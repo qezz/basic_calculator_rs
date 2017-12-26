@@ -1,12 +1,55 @@
 use std::collections::HashMap;
+use std::fmt;
 
 pub type MyResult = Result<f32, Error>;
 
-#[derive(Debug)]
 pub enum Error {
     UndefinedVariable(String),
+    InvalidVariableReference(String),
+    InvalidFunctionReference(String),
+    InvalidLambdaArgs(usize, usize),
+    InvalidNativeFunctionArgs(usize),
     UndefinedFunction(String),
-    UnknownError,
+}
+
+use types::Error::*;
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            UndefinedVariable(ref varname) => write!(f, "Undefined Variable: {}", varname),
+            InvalidVariableReference(ref varname) => {
+                write!(
+                    f,
+                    "Syntax Error: Variable {} doesn't refer to a computed value",
+                    varname
+                )
+            }
+            InvalidFunctionReference(ref fun_name) => {
+                write!(
+                    f,
+                    "Syntax Error: Function {} doesn't refer to a lambda",
+                    fun_name
+                )
+            }
+            InvalidLambdaArgs(ref expected, ref actual) => {
+                write!(
+                    f,
+                    "Syntax Error: Expected {} arguments, Got {}",
+                    expected,
+                    actual
+                )
+            }
+            InvalidNativeFunctionArgs(ref actual) => {
+                write!(
+                    f,
+                    "Syntax Error: Native Functions can only be called with a single argument. Got {}",
+                    actual
+                )
+            }
+            UndefinedFunction(ref varname) => write!(f, "Undefined Function: {}", varname),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -38,7 +81,7 @@ pub enum Expr {
     EDiv(Box<Expr>, Box<Expr>),
     EExp(Box<Expr>, Box<Expr>),
     ELet(String, Box<Expr>),
-    EIf(Box<IfExpr>, Vec<IfExpr>, Vec<Expr>),
+    EIf(Vec<IfExpr>, Vec<Expr>),
     EFunCall(String, Vec<Expr>),
     EDefun(String, Lambda),
     EReturn(Box<Expr>),

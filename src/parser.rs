@@ -44,7 +44,7 @@ named!(return_statement<&str, Expr>,
            expr: mathexpr >>
            (parse_return(expr))
        ));
-named!(fun_body<&str, Vec<Expr>>,
+named!(block<&str, Vec<Expr>>,
        do_parse!(
            ws!(char!('{')) >>
            opt!(char!('\n')) >>
@@ -59,7 +59,7 @@ named!(defun<&str, Expr>,
            tag!("define") >>
            func_name: varname >>
            params: arg_list >>
-           body: fun_body >>
+           body: block >>
            (parse_defun(func_name, params, body))
        ));
 named!(funcall<&str, Expr>,
@@ -73,13 +73,13 @@ named!(single_if<&str, IfExpr>,
        do_parse!(
            ws!(tag!("if")) >>
            cond: if_cond >>
-           body: fun_body >>
+           body: block >>
            (parse_single_if(cond, body))
        ));
 named!(else_expr<&str, Vec<Expr>>,
        do_parse!(
            tag!("else") >>
-           body: fun_body >>
+           body: block >>
            (body)
        ));
 named!(ifexpr<&str, Expr>,
@@ -90,10 +90,12 @@ named!(ifexpr<&str, Expr>,
            (parse_if_expression(if_body, else_ifs, else_body))
        ));
 named!(nested_expr<&str, Expr>, alt!(let_expr | ifexpr | return_statement | mathexpr));
-named!(pub expr<&str, Expr>, alt!(defun | nested_expr));
+named!(pub expr<&str, Expr>, alt!(complete!(defun) | complete!(nested_expr)));
 
 fn parse_if_expression(if_body: IfExpr, else_ifs: Vec<IfExpr>, else_body: Vec<Expr>) -> Expr {
-    EIf(Box::new(if_body), else_ifs, else_body)
+    let mut ifs = vec![if_body];
+    ifs.extend(else_ifs);
+    EIf(ifs, else_body)
 }
 
 fn parse_single_if(condition: (Expr, Expr), body: Vec<Expr>) -> IfExpr {
@@ -313,11 +315,12 @@ mod tests {
         assert_eq!(
             parsed,
             EIf(
-                Box::new(IfExpr {
-                    condition: (EVar(String::from("n")), ENum(1.0)),
-                    body: vec![EReturn(Box::new(ENum(1.0)))],
-                }),
-                vec![],
+                vec![
+                    IfExpr {
+                        condition: (EVar(String::from("n")), ENum(1.0)),
+                        body: vec![EReturn(Box::new(ENum(1.0)))],
+                    },
+                ],
                 vec![EReturn(Box::new(ENum(2.0)))],
             )
         );
@@ -340,11 +343,11 @@ mod tests {
         assert_eq!(
             parsed,
             EIf(
-                Box::new(IfExpr {
-                    condition: (EVar(String::from("n")), ENum(1.0)),
-                    body: vec![EReturn(Box::new(ENum(1.0)))],
-                }),
                 vec![
+                    IfExpr {
+                        condition: (EVar(String::from("n")), ENum(1.0)),
+                        body: vec![EReturn(Box::new(ENum(1.0)))],
+                    },
                     IfExpr {
                         condition: (EVar(String::from("n")), ENum(2.0)),
                         body: vec![
@@ -389,11 +392,11 @@ mod tests {
                     params: vec![String::from("n")],
                     body: vec![
                         EIf(
-                            Box::new(IfExpr {
-                                condition: (EVar(String::from("n")), ENum(1.0)),
-                                body: vec![EReturn(Box::new(ENum(1.0)))],
-                            }),
                             vec![
+                                IfExpr {
+                                    condition: (EVar(String::from("n")), ENum(1.0)),
+                                    body: vec![EReturn(Box::new(ENum(1.0)))],
+                                },
                                 IfExpr {
                                     condition: (EVar(String::from("n")), ENum(2.0)),
                                     body: vec![EReturn(Box::new(ENum(1.0)))],
