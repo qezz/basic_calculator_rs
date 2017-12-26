@@ -3,6 +3,7 @@ use std::fmt;
 
 pub type MyResult = Result<f32, Error>;
 
+#[derive(Debug)]
 pub enum Error {
     UndefinedVariable(String),
     InvalidVariableReference(String),
