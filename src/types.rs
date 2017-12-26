@@ -1,5 +1,14 @@
 use std::collections::HashMap;
 
+pub type MyResult = Result<f32, Error>;
+
+#[derive(Debug)]
+pub enum Error {
+    UndefinedVariable(String),
+    UndefinedFunction(String),
+    UnknownError,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Lambda {
     pub params: Vec<String>,
@@ -47,8 +56,8 @@ impl Environment {
         env.add(fun_name.clone(), NativeFn(|x| x.sqrt()));
         env
     }
-    pub fn get(&self, var_name: String) -> EnvValue {
-        self.0.get(&var_name).unwrap().clone()
+    pub fn get(&self, var_name: String) -> Option<EnvValue> {
+        self.0.get(&var_name).map(|e| e.clone())
     }
     pub fn add(&mut self, var_name: String, result: EnvValue) -> &mut Environment {
         &self.0.insert(var_name, result);
