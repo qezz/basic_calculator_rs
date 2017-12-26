@@ -91,7 +91,7 @@ pub enum Expr {
 }
 
 #[derive(Clone)]
-pub struct Environment(pub HashMap<String, EnvValue>);
+pub struct Environment(HashMap<String, EnvValue>);
 
 use self::EnvValue::*;
 
