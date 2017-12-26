@@ -35,7 +35,11 @@ pub fn evaluate(env: &mut Environment, expr: Expr) -> MyResult {
                 match defun {
                     LambdaRef(Lambda { params, body }) => {
                         if args.len() != params.len() {
-                            Err(InvalidLambdaArgs(params.len(), args.len()))
+                            Err(InvalidLambdaArgs(
+                                func_name.clone(),
+                                params.len(),
+                                args.len(),
+                            ))
                         } else {
                             let mut cloned_environment = env.clone();
                             let maybe_args: Result<Vec<f32>, _> =
@@ -51,7 +55,7 @@ pub fn evaluate(env: &mut Environment, expr: Expr) -> MyResult {
                     }
                     NativeFn(f) => {
                         if args.len() > 1 {
-                            Err(InvalidNativeFunctionArgs(args.len()))
+                            Err(InvalidNativeFunctionArgs(func_name.clone(), args.len()))
                         } else {
                             let result = evaluate(env, args.into_iter().nth(0).unwrap())?;
                             Ok(f(result))

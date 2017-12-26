@@ -7,8 +7,8 @@ pub enum Error {
     UndefinedVariable(String),
     InvalidVariableReference(String),
     InvalidFunctionReference(String),
-    InvalidLambdaArgs(usize, usize),
-    InvalidNativeFunctionArgs(usize),
+    InvalidLambdaArgs(String, usize, usize),
+    InvalidNativeFunctionArgs(String, usize),
     UndefinedFunction(String),
 }
 
@@ -32,18 +32,20 @@ impl fmt::Display for Error {
                     fun_name
                 )
             }
-            InvalidLambdaArgs(ref expected, ref actual) => {
+            InvalidLambdaArgs(ref fun_name, ref expected, ref actual) => {
                 write!(
                     f,
-                    "Syntax Error: Expected {} arguments, Got {}",
+                    "Syntax Error: Function '{}' expects only {} arguments, but got {}",
+                    fun_name,
                     expected,
                     actual
                 )
             }
-            InvalidNativeFunctionArgs(ref actual) => {
+            InvalidNativeFunctionArgs(ref native_fn_name, ref actual) => {
                 write!(
                     f,
-                    "Syntax Error: Native Functions can only be called with a single argument. Got {}",
+                    "Syntax Error: Native function '{}' can only be called with a single argument, but got {}",
+                    native_fn_name,
                     actual
                 )
             }
