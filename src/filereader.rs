@@ -9,6 +9,7 @@ use nom::Input;
 use types::Expr;
 use parser::expr;
 use std::str::from_utf8;
+use std::ffi::OsString;
 
 pub enum State {
     Beginning,
@@ -39,16 +40,21 @@ pub struct BCalcFileStreamer {
 }
 
 impl BCalcFileStreamer {
-    pub fn new(file_name: &str) -> Result<Self, String> {
-        match FileProducer::new(file_name, 5000) {
-            Ok(producer) => {
-                Ok(BCalcFileStreamer {
-                    file_producer: producer,
-                    consumer: BCalcFileConsumer::new(),
-                })
-            }
-            Err(_) => Err(format!("Could not create FileProducer for {:?}", file_name)),
-        }
+    pub fn new(file_name: OsString) -> Result<Self, String> {
+        file_name
+            .to_str()
+            .map(|file| match FileProducer::new(file, 5000) {
+                Ok(producer) => {
+                    Ok(BCalcFileStreamer {
+                        file_producer: producer,
+                        consumer: BCalcFileConsumer::new(),
+                    })
+                }
+                Err(_) => Err(format!("Could not create FileProducer for {:?}", file_name)),
+            })
+            .unwrap_or_else(|| {
+                Err(format!("Could not create FileProducer for {:?}", file_name))
+            })
     }
 }
 
