@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::result;
 
-pub type MyResult = Result<f32, Error>;
+pub type Result = result::Result<f32, Error>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -110,5 +111,12 @@ impl Environment {
     pub fn add(&mut self, var_name: String, result: EnvValue) -> &mut Environment {
         &self.0.insert(var_name, result);
         self
+    }
+}
+
+pub fn display(r: Result) -> String {
+    match r {
+        Ok(value) => value.to_string(),
+        Err(error) => error.to_string(),
     }
 }

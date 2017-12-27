@@ -2,8 +2,10 @@ use types::*;
 use types::Error::*;
 use types::Expr::*;
 use types::EnvValue::*;
+use types::Result;
+use std::result::Result as StdResult;
 
-pub fn evaluate(env: &mut Environment, expr: Expr) -> MyResult {
+pub fn evaluate(env: &mut Environment, expr: Expr) -> Result {
     match expr {
         ENum(num) => Ok(num),
         EAdd(expr1, expr2) => Ok(evaluate(env, *expr1)? + evaluate(env, *expr2)?),
@@ -42,7 +44,7 @@ pub fn evaluate(env: &mut Environment, expr: Expr) -> MyResult {
                             ))
                         } else {
                             let mut cloned_environment = env.clone();
-                            let maybe_args: Result<Vec<f32>, _> =
+                            let maybe_args: StdResult<Vec<f32>, _> =
                                 args.into_iter().map(|arg| evaluate(env, arg)).collect();
                             params.into_iter().zip(maybe_args?.into_iter()).fold(
                                 &mut cloned_environment,
@@ -69,7 +71,7 @@ pub fn evaluate(env: &mut Environment, expr: Expr) -> MyResult {
         }
         EReturn(expr) => evaluate(env, *expr),
         EIf(ifexprs, elseexpr) => {
-            let bools: Result<Vec<bool>, _> = ifexprs
+            let bools: StdResult<Vec<bool>, _> = ifexprs
                 .iter()
                 .map(|ifexpr| {
                     let (lhs, rhs) = ifexpr.clone().condition;

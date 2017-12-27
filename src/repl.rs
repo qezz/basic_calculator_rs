@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use parser::parse;
 use types::Environment;
-use types::MyResult;
+use types::display;
 use evaluator::*;
 
 pub fn init() {
@@ -17,12 +17,5 @@ pub fn init() {
         );
         io::stdout().write(result.to_string().as_bytes()).unwrap();
         io::stdout().flush().unwrap();
-    }
-}
-
-fn display(r: MyResult) -> String {
-    match r {
-        Ok(value) => value.to_string(),
-        Err(error) => error.to_string(),
     }
 }
