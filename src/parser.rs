@@ -87,7 +87,7 @@ named!(ifexpr<&str, Expr>,
            (parse_if_expression(ifexpr, else_ifs, elseexpr))
        ));
 named!(nested_expr<&str, Expr>, alt!(let_expr | ifexpr | return_statement | mathexpr));
-named!(expr<&str, Expr>, alt!(defun | nested_expr));
+named!(pub expr<&str, Expr>, alt!(defun | nested_expr));
 
 pub fn parse(input: &str) -> Result<Expr, Error> {
     match expr(input) {
