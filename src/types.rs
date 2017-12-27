@@ -11,6 +11,7 @@ pub enum Error {
     InvalidLambdaArgs(String, usize, usize),
     InvalidNativeFunctionArgs(String, usize),
     UndefinedFunction(String),
+    ParseError,
 }
 
 use types::Error::*;
@@ -51,6 +52,7 @@ impl fmt::Display for Error {
                 )
             }
             UndefinedFunction(ref varname) => write!(f, "Undefined Function: {}", varname),
+            ParseError => write!(f, "Unable the parse the input. Please recheck."),
         }
     }
 }

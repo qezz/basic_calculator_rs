@@ -1,5 +1,8 @@
 use nom::{digit, alpha};
+use nom::IResult::*;
 use types::Lambda;
+use types::Error;
+use types::Error::ParseError;
 use types::Expr;
 use types::IfExpr;
 use types::Expr::*;
@@ -76,26 +79,27 @@ named!(single_if<&str, IfExpr>,
            body: block >>
            (parse_single_if(cond, body))
        ));
-named!(else_expr<&str, Vec<Expr>>,
-       do_parse!(
-           tag!("else") >>
-           body: block >>
-           (body)
-       ));
 named!(ifexpr<&str, Expr>,
        do_parse!(
-           if_body: single_if >>
-           else_ifs: many0!(do_parse!(tag!("else") >> if_body: single_if >> (if_body))) >>
-           else_body: else_expr >>
-           (parse_if_expression(if_body, else_ifs, else_body))
+           ifexpr: single_if >>
+           else_ifs: many0!(do_parse!(tag!("else") >> ifexpr: single_if >> (ifexpr))) >>
+           elseexpr: do_parse!(tag!("else") >> body: block >> (body)) >>
+           (parse_if_expression(ifexpr, else_ifs, elseexpr))
        ));
 named!(nested_expr<&str, Expr>, alt!(let_expr | ifexpr | return_statement | mathexpr));
-named!(pub expr<&str, Expr>, alt!(complete!(defun) | complete!(nested_expr)));
+named!(expr<&str, Expr>, alt!(defun | nested_expr));
 
-fn parse_if_expression(if_body: IfExpr, else_ifs: Vec<IfExpr>, else_body: Vec<Expr>) -> Expr {
-    let mut ifs = vec![if_body];
+pub fn parse(input: &str) -> Result<Expr, Error> {
+    match expr(input) {
+        Done(_, expr) => Ok(expr),
+        _ => Err(ParseError),
+    }
+}
+
+fn parse_if_expression(ifexpr: IfExpr, else_ifs: Vec<IfExpr>, elseexpr: Vec<Expr>) -> Expr {
+    let mut ifs = vec![ifexpr];
     ifs.extend(else_ifs);
-    EIf(ifs, else_body)
+    EIf(ifs, elseexpr)
 }
 
 fn parse_single_if(condition: (Expr, Expr), body: Vec<Expr>) -> IfExpr {
@@ -155,25 +159,25 @@ mod tests {
 
     #[test]
     fn test_parse_add_statement() {
-        let (_rem, parsed) = expr("1 + 2").unwrap();
+        let parsed = parse("1 + 2").unwrap();
         assert_eq!(parsed, EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
     }
 
     #[test]
     fn test_parse_subtraction_statement() {
-        let (_rem, parsed) = expr("1 - 2").unwrap();
+        let parsed = parse("1 - 2").unwrap();
         assert_eq!(parsed, ESub(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
     }
 
     #[test]
     fn test_parse_multiplication_statement() {
-        let (_rem, parsed) = expr("1 * 2").unwrap();
+        let parsed = parse("1 * 2").unwrap();
         assert_eq!(parsed, EMul(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
     }
 
     #[test]
     fn test_parse_multi_level_expression() {
-        let (_rem, parsed) = expr("1 * 2 + 3 / 4 ^ 6").unwrap();
+        let parsed = parse("1 * 2 + 3 / 4 ^ 6").unwrap();
         let expected = EAdd(
             Box::new(EMul(Box::new(ENum(1.0)), Box::new(ENum(2.0)))),
             Box::new(EDiv(
@@ -186,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_parse_expression_with_parantheses() {
-        let (_rem, parsed) = expr("(1 + 2) * 3").unwrap();
+        let parsed = parse("(1 + 2) * 3").unwrap();
         let expected = EMul(
             Box::new(EAdd(Box::new(ENum(1.0)), Box::new(ENum(2.0)))),
             Box::new(ENum(3.0)),
@@ -196,13 +200,13 @@ mod tests {
 
     #[test]
     fn test_parse_division_statement() {
-        let (_rem, parsed) = expr("1 / 2").unwrap();
+        let parsed = parse("1 / 2").unwrap();
         assert_eq!(parsed, EDiv(Box::new(ENum(1.0)), Box::new(ENum(2.0))));
     }
 
     #[test]
     fn test_parse_let_statement() {
-        let (_rem, parsed) = expr("let phi = (20 + 30) - 10").unwrap();
+        let parsed = parse("let phi = (20 + 30) - 10").unwrap();
         assert_eq!(
             parsed,
             ELet(
@@ -217,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_parse_variables_in_expressions() {
-        let (_rem, parsed) = expr("20 + (30 + phi) - 10").unwrap();
+        let parsed = parse("20 + (30 + phi) - 10").unwrap();
         assert_eq!(
             parsed,
             ESub(
@@ -235,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_parse_return_statements() {
-        let (_rem, parsed) = expr("return n * n").unwrap();
+        let parsed = parse("return n * n").unwrap();
         assert_eq!(
             parsed,
             EReturn(Box::new(EMul(
@@ -248,7 +252,7 @@ mod tests {
     #[test]
     fn test_parse_simple_function_definitions_with_single_argument() {
         let function_definiton = "define square(n) { return n * n; }";
-        let (_rem, parsed) = expr(function_definiton).unwrap();
+        let parsed = parse(function_definiton).unwrap();
         assert_eq!(
             parsed,
             EDefun(
@@ -272,7 +276,7 @@ mod tests {
             let result = m * n;
             return result;
             }";
-        let (_rem, parsed) = expr(function_definiton).unwrap();
+        let parsed = parse(function_definiton).unwrap();
         assert_eq!(
             parsed,
             EDefun(
@@ -297,7 +301,7 @@ mod tests {
     #[test]
     fn test_parse_function_application() {
         let function_call = "multiply(5, 6)";
-        let (_rem, parsed) = expr(function_call).unwrap();
+        let parsed = parse(function_call).unwrap();
         assert_eq!(
             parsed,
             EFunCall(String::from("multiply"), vec![ENum(5.0), ENum(6.0)])
@@ -311,7 +315,7 @@ mod tests {
             } else {
              return 2;
             }";
-        let (_rem, parsed) = expr(if_definition).unwrap();
+        let parsed = parse(if_definition).unwrap();
         assert_eq!(
             parsed,
             EIf(
@@ -339,7 +343,7 @@ mod tests {
             } else {
              return 2;
             }";
-        let (_rem, parsed) = expr(if_definition).unwrap();
+        let parsed = parse(if_definition).unwrap();
         assert_eq!(
             parsed,
             EIf(
@@ -382,7 +386,7 @@ mod tests {
               return fibrecursive(n - 1) + fibrecursive(n);
             };
           }";
-        let (_rem, parsed) = defun(recursive_function).unwrap();
+        let parsed = parse(recursive_function).unwrap();
         let fun_name = String::from("fibrecursive");
         assert_eq!(
             parsed,
