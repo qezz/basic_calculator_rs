@@ -1,5 +1,8 @@
-use nom::{digit, alpha};
-use nom::IResult::*;
+use nom::{
+    alpha,
+    digit,
+    types::CompleteStr
+};
 use types::Lambda;
 use types::Error;
 use types::Error::ParseError;
@@ -11,29 +14,29 @@ use std::str::FromStr;
 // Use the classic solution to break left recursion in a LL(1) recursive descent parser
 // Solution can be found here: https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#classic
 
-named!(num<&str, Expr>, map!(ws!(digit),  parse_num));
-named!(parens<&str, Expr>, ws!(delimited!(char!('('), mathexpr, char!(')'))));
-named!(operation<&str, Expr>, alt!( complete!(funcall) | map!(varname, parse_evar) | num | parens));
-named!(factor<&str, Expr>,
+named!(num<CompleteStr, Expr>, map!(ws!(digit),  parse_num));
+named!(parens<CompleteStr, Expr>, ws!(delimited!(char!('('), mathexpr, char!(')'))));
+named!(operation<CompleteStr, Expr>, alt!(funcall | map!(varname, parse_evar) | parens | num));
+named!(factor<CompleteStr, Expr>,
        do_parse!(
            op: operation >>
            rem: many0!(tuple!(char!('^'), factor)) >>
            (parse_expr(op, rem))
        ));
-named!(term<&str, Expr>,
+named!(term<CompleteStr, Expr>,
        do_parse!(
            f: factor >>
            rem: many0!(tuple!(alt!(char!('*') | char!('/')), factor)) >>
            (parse_expr(f, rem))
        ));
-named!(mathexpr<&str, Expr>,
+named!(pub mathexpr<CompleteStr, Expr>,
        do_parse!(
            t: term >>
            rem: many0!(tuple!(alt!(char!('+') | char!('-')), term)) >>
            (parse_expr(t, rem))
        ));
-named!(varname<&str, &str>, ws!(alpha));
-named!(let_expr<&str, Expr>,
+named!(varname<CompleteStr, CompleteStr>, ws!(alpha));
+named!(let_expr<CompleteStr, Expr>,
        do_parse!(
            tag!("let") >>
            var_name: varname >>
@@ -41,13 +44,13 @@ named!(let_expr<&str, Expr>,
            expr: mathexpr >>
            (parse_let(var_name, expr))
        ));
-named!(return_statement<&str, Expr>,
+named!(return_statement<CompleteStr, Expr>,
        do_parse!(
            tag!("return") >>
            expr: mathexpr >>
            (parse_return(expr))
        ));
-named!(block<&str, Vec<Expr>>,
+named!(block<CompleteStr, Vec<Expr>>,
        do_parse!(
            ws!(char!('{')) >>
            opt!(char!('\n')) >>
@@ -56,8 +59,8 @@ named!(block<&str, Vec<Expr>>,
            ws!(char!('}')) >>
            (exprs)
        ));
-named!(arg_list<&str, Vec<&str>>, delimited!(char!('('), separated_list!(char!(','), varname), char!(')')));
-named!(defun<&str, Expr>,
+named!(arg_list<CompleteStr, Vec<CompleteStr>>, delimited!(char!('('), separated_list!(char!(','), varname), char!(')')));
+named!(defun<CompleteStr, Expr>,
        do_parse!(
            tag!("define") >>
            func_name: varname >>
@@ -65,33 +68,33 @@ named!(defun<&str, Expr>,
            body: block >>
            (parse_defun(func_name, params, body))
        ));
-named!(funcall<&str, Expr>,
+named!(funcall<CompleteStr, Expr>,
        do_parse!(
            func_name: varname >>
            args: ws!(delimited!(char!('('), separated_list!(char!(','), expr), char!(')'))) >>
            (parse_funcall(func_name, args))
        ));
-named!(if_cond<&str, (Expr, Expr)>, delimited!(char!('('), separated_pair!(expr, ws!(tag!("==")), expr), char!(')')));
-named!(single_if<&str, IfExpr>,
+named!(if_cond<CompleteStr, (Expr, Expr)>, delimited!(char!('('), separated_pair!(expr, ws!(tag!("==")), expr), char!(')')));
+named!(single_if<CompleteStr, IfExpr>,
        do_parse!(
            ws!(tag!("if")) >>
            cond: if_cond >>
            body: block >>
            (parse_single_if(cond, body))
        ));
-named!(ifexpr<&str, Expr>,
+named!(ifexpr<CompleteStr, Expr>,
        do_parse!(
            ifexpr: single_if >>
            else_ifs: many0!(do_parse!(tag!("else") >> ifexpr: single_if >> (ifexpr))) >>
            elseexpr: do_parse!(tag!("else") >> body: block >> (body)) >>
            (parse_if_expression(ifexpr, else_ifs, elseexpr))
        ));
-named!(nested_expr<&str, Expr>, alt!(let_expr | ifexpr | return_statement | mathexpr));
-named!(pub expr<&str, Expr>, alt!(defun | nested_expr));
+named!(nested_expr<CompleteStr, Expr>, alt!(let_expr | ifexpr | return_statement | mathexpr));
+named!(pub expr<CompleteStr, Expr>, alt!(defun | nested_expr));
 
 pub fn parse(input: &str) -> Result<Expr, Error> {
-    match expr(input) {
-        Done(_, expr) => Ok(expr),
+    match expr(CompleteStr(input)) {
+        Ok((_, expr)) => Ok(expr),
         _ => Err(ParseError),
     }
 }
@@ -106,7 +109,7 @@ fn parse_single_if(condition: (Expr, Expr), body: Vec<Expr>) -> IfExpr {
     IfExpr { condition, body }
 }
 
-fn parse_funcall(name: &str, args: Vec<Expr>) -> Expr {
+fn parse_funcall(name: CompleteStr, args: Vec<Expr>) -> Expr {
     EFunCall(name.to_string(), args)
 }
 
@@ -114,7 +117,7 @@ fn parse_return(expr: Expr) -> Expr {
     EReturn(Box::new(expr))
 }
 
-fn parse_defun(func_name: &str, params: Vec<&str>, body: Vec<Expr>) -> Expr {
+fn parse_defun(func_name: CompleteStr, params: Vec<CompleteStr>, body: Vec<Expr>) -> Expr {
     EDefun(
         func_name.to_string(),
         Lambda {
@@ -124,11 +127,11 @@ fn parse_defun(func_name: &str, params: Vec<&str>, body: Vec<Expr>) -> Expr {
     )
 }
 
-fn parse_evar(var_name: &str) -> Expr {
+fn parse_evar(var_name: CompleteStr) -> Expr {
     EVar(var_name.to_string())
 }
 
-fn parse_let(var_name: &str, expr: Expr) -> Expr {
+fn parse_let(var_name: CompleteStr, expr: Expr) -> Expr {
     ELet(var_name.to_string(), Box::new(expr))
 }
 
@@ -148,9 +151,9 @@ fn parse_op(tup: (char, Expr), expr1: Expr) -> Expr {
     }
 }
 
-fn parse_num(num: &str) -> Expr {
+fn parse_num(num: CompleteStr) -> Expr {
     // forgoing all error handling for now
-    ENum(f32::from_str(num).unwrap())
+    ENum(f32::from_str(num.as_ref()).unwrap())
 }
 
 #[cfg(test)]

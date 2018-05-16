@@ -1,3 +1,4 @@
+
 [package]
 name = "basic_calculator"
 version = "0.1.0"
@@ -5,7 +6,4 @@ authors = ["Balaji Sivaraman <balaji@balajisivaraman.com>"]
 license = "MPL-2.0"
 
 [dependencies]
-
-[dependencies.nom]
-version = "^3.2"
-features = ["nightly"]
+nom = "^4"
